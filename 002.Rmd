@@ -1,0 +1,215 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+#Please use the attached dataset on loan approval status to predict loan approval using Decision Trees. Please be sure to conduct a thorough exploratory analysis to start the task and walk us through your reasoning behind all the steps you are taking. (40 points)
+```{r}
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(pROC)
+library(nnet)
+library(forcats)
+library(knitr)
+library(rpart)
+```
+
+# Import Data
+```{r}
+loan <- read.csv("https://raw.githubusercontent.com/Zchen116/data-622/main/Loan_approval.csv")
+```
+
+```{r}
+head(loan)
+summary(loan)
+```
+
+# Clean Data
+1, Remove N/A from the dataset
+2, Combine ApplicantIncome and CoapplicantIncome
+3, Remove the variable "Loan_ID", "ApplicantIncome" and "CoapplicantIncome"
+```{r}
+data <- na.omit(loan) %>%
+  mutate(TotalIncome = ApplicantIncome + CoapplicantIncome) %>%
+  dplyr::select(-c(Loan_ID, ApplicantIncome, CoapplicantIncome))
+  
+```
+
+```{r}
+data <- transform(
+  data, 
+  Gender = as.factor(Gender),
+  Married = as.factor(Married), 
+  Dependents = as.factor(Dependents),
+  Education = as.factor(Education),
+  Self_Employed = as.factor(Self_Employed),
+  LoanAmount = as.integer(LoanAmount),
+  Loan_Amount_Term = as.integer(Loan_Amount_Term),
+  Credit_History = as.factor(Credit_History),
+  Property_Area = as.factor(Property_Area),
+  Loan_Status = as.factor(Loan_Status))
+
+sapply(data, class)
+```
+
+```{r}
+summary(data)
+```
+
+
+let's give a look at the categorical variables in the dataset:
+```{r}
+par(mfrow=c(2,3))
+
+counts <- table(data$Loan_Status, data$Gender)
+barplot(counts, main="Loan Status by Gender",
+        xlab="Gender", col=c("darkgrey","maroon"),
+        legend = rownames(counts))
+
+counts2 <- table(data$Loan_Status, data$Education)
+barplot(counts2, main="Loan Status by Education",
+        xlab="Education", col=c("darkgrey","maroon"),
+        legend = rownames(counts2))
+
+counts3 <- table(data$Loan_Status, data$Married)
+barplot(counts3, main="Loan Status by Married",
+        xlab="Married", col=c("darkgrey","maroon"),
+        legend = rownames(counts3))
+
+counts4 <- table(data$Loan_Status, data$Self_Employed)
+barplot(counts4, main="Loan Status by Self Employed",
+        xlab="Self_Employed", col=c("darkgrey","maroon"),
+        legend = rownames(counts4))
+
+counts5 <- table(data$Loan_Status, data$Property_Area)
+barplot(counts5, main="Loan Status by Property_Area",
+        xlab="Property_Area", col=c("darkgrey","maroon"),
+        legend = rownames(counts5))
+
+counts6 <- table(data$Loan_Status, data$Credit_History)
+barplot(counts6, main="Loan Status by Credit_History",
+        xlab="Credit_History", col=c("darkgrey","maroon"),
+        legend = rownames(counts5))
+```
+
+
+When we look at the Gender graph, we can note that males have more records and more than half of the applicants' applications have been approved. And there are less female applicants but still more than half of their applications have been approved. When We look at the other charts, we can notice the similar situation as the Gender graph. 
+
+
+# Decision Trees Part:
+
+A decision tree is a supervised machine learning algorithm that can not only be used for both classification and regression problems, but also can be used to visualize the decision-making process by mapping out different potential outcomes. It create a set of binary splits on the predictor variables in order to create a tree that can be used to classify new observations into one of two groups. 
+
+The data is split into training and testing sets 70%/30%.
+```{r}
+set.seed(622)
+sample <- createDataPartition(data$Loan_Status, p = 0.70, list = FALSE, times = 1)
+trainnew <- data[sample, ]
+testnew  <- data[-sample, ]
+```
+
+```{r}
+dtree <- rpart(Loan_Status ~  Credit_History+Education+Self_Employed+Property_Area+LoanAmount+TotalIncome,method="class", data=trainnew,parms=list(split="information"))
+
+dtree$cptable
+```
+
+```{r}
+plotcp(dtree)
+```
+
+```{r}
+dtree.pruned <- prune(dtree, cp=.02290076)
+library(rpart.plot)
+prp(dtree.pruned, type = 2, extra = 104,
+    fallen.leaves = TRUE, main="Decision Tree")
+```
+
+```{r}
+dtree.pred_train <- predict(dtree.pruned, trainnew, type="class")
+dtree.perf_train <- table(trainnew$Loan_Status, dtree.pred_train,
+                    dnn=c("Actual", "Predicted"))
+dtree.perf_train
+```
+
+```{r}
+dtree.cm_train <- confusionMatrix(dtree.pred_train, trainnew$Loan_Status)
+dtree.cm_train
+```
+
+
+Use test dataset to analysis
+```{r}
+dtree_test <- rpart(Loan_Status ~ Credit_History+Education+Self_Employed+Property_Area+LoanAmount+TotalIncome,method="class", data=testnew,parms=list(split="information"))
+
+dtree_test$cptable
+```
+
+```{r}
+plotcp(dtree_test)
+```
+
+```{r}
+dtree_test.pruned <- prune(dtree_test, cp=.01639344)
+prp(dtree_test.pruned, type = 2, extra = 104,
+    fallen.leaves = TRUE, main="Decision Tree")
+```
+
+```{r}
+dtree_test.pred <- predict(dtree_test.pruned, newdata = testnew, type="class")
+dtree_test.perf <- table(testnew$Loan_Status, dtree_test.pred,
+                    dnn=c("Actual", "Predicted"))
+dtree_test.perf
+```
+
+```{r}
+dtree.cm_test <- confusionMatrix(dtree_test.pred, testnew$Loan_Status)
+dtree.cm_test
+```
+
+Accuracy: Train data: 82% and Test data: 84.08%
+
+# Random Trees Part:
+Random Forest is a tree-based machine learning algorithm that leverages the power of multiple decision trees for making decisions. This approach develops multiple predictive models, and the results are aggregated to improve classification.
+```{r}
+library(randomForest)
+```
+
+```{r}
+fit.forest <- randomForest(Loan_Status ~ Credit_History+Education+Self_Employed+Property_Area+LoanAmount+TotalIncome, data=trainnew)
+
+fit.forest
+```
+
+```{r}
+forest.pred <- predict(fit.forest, newdata = trainnew)
+forest.cm <- table(trainnew$Loan_Status, forest.pred,
+                     dnn=c("Actual", "Predicted"))
+forest.cm
+```
+
+```{r}
+forest.cm_train <- confusionMatrix(forest.pred, trainnew$Loan_Status)
+forest.cm_train
+```
+
+
+Use test dataset to analysis
+```{r}
+fit.forest_test <- randomForest(Loan_Status ~ Credit_History+Education+Self_Employed+Property_Area+LoanAmount+TotalIncome, data=testnew)
+
+fit.forest_test
+```
+
+```{r}
+forest.pred_test <- predict(fit.forest_test, newdata = testnew)
+forest.cm_test <- table(testnew$Loan_Status, forest.pred_test,
+                     dnn=c("Actual", "Predicted"))
+forest.cm_test
+```
+
+```{r}
+forest.cm_test <- confusionMatrix(forest.pred_test, testnew$Loan_Status)
+forest.cm_test
+```
