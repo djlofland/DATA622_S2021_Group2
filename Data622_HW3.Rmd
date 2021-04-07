@@ -1,0 +1,225 @@
+---
+title: "Data622_HW3"
+author: "Mengqin Cai"
+date: "4/5/2021"
+output: 
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+  md_document:
+    variant: markdown_github
+  pdf_document:
+        extra_dependencies: ["geometry", "multicol", "multirow"]
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+library(palmerpenguins)
+library(dplyr)
+library(ggplot2)
+data(penguins)
+library(caret)
+library(pROC)
+library(GGally)
+library(tidyr)
+library(Amelia)
+library(VIM)
+library(MASS)
+library(psych)
+library(class)
+library(tree)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+
+```
+
+
+
+# Problem 1: KNN
+
+Please use K-nearest neighbor (KNN) algorithm to predict the species variable. Please be sure to walk through the steps you took. (40 points)
+
+```{r }
+head(penguins)
+summary(penguins)
+
+```
+
+To better evaluate the model, I split the dataset into training and test set. 
+
+
+First, check the missing value of the whole dataset and use KNN imputation to impute the dataset
+
+```{r}
+aggr(penguins,bars=T, numbers=T, sortVars=T)
+penguins<-kNN(penguins)
+penguins<-subset(penguins,select=species:sex)
+missmap(penguins)
+```
+
+```{r}
+
+levels(penguins$species) <- c("Adelie", "Chinstrap", "Gentoo")
+penguins$species<-as.numeric(penguins$species)
+
+levels(penguins$island) <- c("Biscoe", "Dream", "Torgersen")
+penguins$island<-as.numeric(penguins$island)
+
+levels(penguins$sex) <- c("female", "male")
+penguins$sex<-as.numeric(penguins$sex)
+```
+
+
+```{r}
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x))) }
+head(penguins)
+penguins_Trans<- as.data.frame(lapply(penguins[,3:6], normalize))
+penguins_Trans<-cbind(penguins[,1],penguins[,2],penguins_Trans,penguins[,7] )
+colnames(penguins_Trans)<-c("species","island","bill_length_mm","bill_depth_mm","flipper_length_mm","body_mass_g","sex")
+head(penguins_Trans)
+```
+
+
+
+
+
+```{r}
+sample_size<-floor(0.8*nrow(penguins))
+set.seed(123)
+train_ind<-sample(seq_len(nrow(penguins)),size=sample_size)
+train_penguins<-penguins_Trans[train_ind,]
+test_penguins<-penguins_Trans[-train_ind,]
+```
+
+
+
+
+
+Fit the model
+```{r}
+set.seed(123) 
+sqrt(nrow(train_penguins))
+k16<-knn(train_penguins,test_penguins,cl=train_penguins$species,k=16)
+k17<-knn(train_penguins,test_penguins,cl=train_penguins$species,k=17)
+```
+```{r}
+misClassError <- mean(k16 != test_penguins$species)
+misClassError
+table(k16,test_penguins$species)
+
+
+misClassError <- mean(k17 != test_penguins$species)
+misClassError
+table(k17,test_penguins$species)
+```
+There is no different with K16 or K17, we can choose either of the model.
+
+# Problem 2: Decision Trees
+
+Please use the attached dataset on loan approval status to predict loan approval using Decision Trees. Please be sure to conduct a thorough exploratory analysis to start thetask and walk us through your reasoning behind all the steps you are taking. 
+
+
+
+```{r}
+loan<-read.csv("https://raw.githubusercontent.com/DaisyCai2019/NewData/master/Loan_approval.csv")
+head(loan)
+summary(loan)
+```
+```{r}
+missmap(loan)
+loanTrans<-kNN(loan)%>%
+          subset(select = Loan_ID:Loan_Status)
+```
+
+```{r}
+
+loanTrans$Loan_Status<-factor(loanTrans$Loan_Status)
+
+
+loanTrans<-loanTrans %>%
+           mutate(Gender = factor(Gender),
+                  Married = factor(Married),
+                  Dependents=factor(Dependents),
+                  Education=factor(Education),
+                  Self_Employed=factor(Self_Employed),
+                  Property_Area=factor(Property_Area),
+                  Loan_Status=factor(Loan_Status))
+
+summary(loanTrans)
+```
+
+
+```{r}
+set.seed(123)
+train_sample<-sample(1:nrow(loanTrans),size = floor(0.80*nrow(loanTrans)))
+train_loan<-loanTrans[train_sample,]
+test_loan<-loanTrans[-train_sample,]
+```
+
+
+```{r}
+tree<- rpart(Loan_Status~Gender+Married+Dependents+Education+Self_Employed+ApplicantIncome+CoapplicantIncome+LoanAmount+Loan_Amount_Term+Credit_History+Property_Area,data=train_loan)
+rpart.plot(tree,nn=TRUE)
+summary(tree)
+
+```
+```{r}
+loanPre<-predict(tree,test_loan,type="class")
+table(loanPre,test_loan$Loan_Status)
+accuracy<-mean(loanPre==test_loan$Loan_Status)
+accuracy
+```
+
+
+# Problem 3: Random Forests
+
+
+Using the same dataset on Loan Approval Status, please use Random Forests to predict on loan approval status. Again, please be sure to walk us through the steps you took to get to your final model. (50 points)
+
+
+
+```{r}
+rf <- randomForest(Loan_Status~Gender+Married+Dependents+Education+Self_Employed+ApplicantIncome+CoapplicantIncome+LoanAmount+Loan_Amount_Term+Credit_History+Property_Area,data=train_loan)
+rf
+importance(rf)
+```
+```{r}
+rfPre<-predict(rf,test_loan)
+table(rfPre,test_loan$Loan_Status)
+accuracy2<-mean(rfPre==test_loan$Loan_Status)
+accuracy2
+```
+
+
+# Problem 4: Gradient Boosting
+
+Using the Loan Approval Status data, please use Gradient Boosting to predict on the loan approval status. Please use whatever boosting approach you deem appropriate;but please be sure to walk us through your steps. (50 points)
+
+
+
+
+
+
+
+
+
+
+
+# Problem 5: Gradient Boosting
+
+Model performance: please compare the models you settled on for problem # 2 – 4.Comment on their relative performance. Which one would you prefer the most? Why?(20 points)
+
+
+
+
+
