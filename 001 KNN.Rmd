@@ -1,0 +1,178 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+#For this assignment, we will be working with two different datasets. For problem # 1, we will still be working with the Penguin dataset.
+```{r}
+library(palmerpenguins)
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(pROC)
+library(nnet)
+library(forcats)
+library(knitr)
+```
+
+```{r}
+summary(penguins)
+```
+
+```{r}
+penguins_df = na.omit(penguins)
+summary(penguins_df)
+```
+
+#Remove N/a from penguins dataset and remove the variable "year"
+```{r}
+org_penguins_df <- penguins_df
+penguins_df <- penguins_df %>% 
+  dplyr::select(-year) %>%
+  mutate_if(is.factor, as.numeric)
+penguins_df$species <- org_penguins_df$species 
+print(penguins_df)
+```
+
+```{r}
+#Normalization
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x))) }
+```
+
+```{r}
+penguins_df_norm <- as.data.frame(lapply(penguins_df[3:6], normalize))
+```
+
+```{r}
+penguins_df_norm$sex <- penguins_df$sex
+penguins_df_norm$island <- penguins_df$island
+penguins_df_norm$species <- penguins_df$species
+head(penguins_df_norm)
+```
+
+```{r}
+set.seed(1234)
+ind <- sample(2, nrow(penguins_df_norm), replace=TRUE, prob=c(0.70, 0.30))
+```
+
+```{r}
+penguin.train <- penguins_df_norm[ind==1, 1:6]
+# Inspect training set
+head(penguin.train)
+# Compose test set
+penguin.test <- penguins_df_norm[ind==2, 1:6]
+# Inspect test set
+head(penguin.test)
+```
+
+```{r}
+penguin.trainLabels <- penguins_df_norm[ind==1,7]
+# Inspect result
+print(penguin.trainLabels)
+# Compose `penguin` test labels
+penguin.testLabels <- penguins_df_norm[ind==2, 7]
+# Inspect result
+print(penguin.testLabels)
+```
+
+```{r}
+library(class)
+NROW(penguin.trainLabels) 
+```
+
+So, we have 239 observations in our training data set. The square root of 239 is around 15.35, therefore we’ll create two models. One with ‘K’ value as 15 and the other model with a ‘K’ value as 16.
+
+Please use K-nearest neighbor (KNN) algorithm to predict the species variable. Please
+be sure to walk through the steps you took. (40 points)
+
+#Model Evaluation
+```{r}
+penguin_pred <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=1)
+
+penguin_pred
+```
+
+```{r}
+# Confusiin Matrix
+cm <- table(penguin.testLabels, penguin_pred)
+cm
+```
+So, 36 Adelie are correctly classified as Adelie. 
+
+Out of 22 Chinstrap, 21 Chinstrap are correctly classified as Chinstrap and 1 is classified as Adelie. 
+
+36 Gentoo are correctly classified as Gentoo.
+
+```{r}
+misClassError <- mean(penguin_pred != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError))
+```
+
+K = 3
+```{r}
+penguin_pred_3 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=3)
+misClassError_3 <- mean(penguin_pred_3 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_3))
+```
+
+
+K = 5
+```{r}
+penguin_pred_5 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=5)
+
+misClassError_5 <- mean(penguin_pred_5 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_5))
+```
+
+
+K = 7
+```{r}
+penguin_pred_7 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=7)
+
+misClassError_7 <- mean(penguin_pred_7 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_7))
+```
+
+
+K = 9
+```{r}
+penguin_pred_9 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=9)
+
+misClassError_9 <- mean(penguin_pred_9 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_9))
+```
+
+
+K = 11
+```{r}
+penguin_pred_11 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=11)
+
+misClassError_11 <- mean(penguin_pred_11 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_11))
+```
+
+K = 13
+```{r}
+penguin_pred_13 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=13)
+
+misClassError_13 <- mean(penguin_pred_13 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_13))
+```
+
+K = 15
+```{r}
+penguin_pred_15 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=15)
+
+misClassError_15 <- mean(penguin_pred_15 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_15))
+```
+
+K = 16
+```{r}
+penguin_pred_16 <- knn(train = penguin.train, test = penguin.test, cl = penguin.trainLabels, k=16)
+
+misClassError_16 <- mean(penguin_pred_16 != penguin.testLabels)
+print(paste('Accuracy =', 1-misClassError_16))
+```
+
