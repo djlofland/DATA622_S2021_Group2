@@ -489,11 +489,18 @@ From our decision tree summary and plot, we can see that a few variables, such a
 
 ```{r}
 loanPre<-predict(tree1,test_loan,type="class")
-table(loanPre,test_loan$Loan_Status)
-accuracy<-mean(loanPre==test_loan$Loan_Status)
-accuracy
+table(loanPre,test_loan$Loan_Status,dnn=c("Actual", "Predicted"))
+accuracy_tree1<-mean(loanPre==test_loan$Loan_Status)
+accuracy_tree1
 ```
 As we can see from our predictions and the ensuing confusion matrix, we were able to obtain about 79% accuracy using this decision tree. To achieve higher accuracy, we'll use the `prune()` function in the `rpart` package to examine a predicted optimal tree size. 
+
+
+```{r}
+dtree.cm_train <- confusionMatrix(loanPre, test_loan$Loan_Status)
+dtree.cm_train
+```
+
 
 ```{r}
 plotcp(tree1)
@@ -517,9 +524,16 @@ tree1.pruned.pred <- predict(tree1.pruned, test_loan, type = "class" )
 tree1.pruned.perf <- table(test_loan$Loan_Status, tree1.pruned.pred, dnn = c("Actual", "Predicted"))
 
 tree1.pruned.perf
-accuracy<-mean(tree1.pruned.pred==test_loan$Loan_Status)
-accuracy
+accuracy_tree2<-mean(tree1.pruned.pred==test_loan$Loan_Status)
+accuracy_tree2
 ```
+
+```{r}
+dtree.cm_pruned <- confusionMatrix(tree1.pruned.pred, test_loan$Loan_Status)
+dtree.cm_pruned
+```
+
+
 
 In the end, we'd likely want to go with a more robust decision tree, than just one feature, but not getting too large in size -- which is why our initial tree seems to be a good balance between these two phenomenon.  
 
@@ -546,11 +560,17 @@ forest.cm <- table(test_loan$Loan_Status, forest.pred,
                      dnn=c("Actual", "Predicted"))
 forest.cm
 ```
+
+```{r}
+accuracy_forest1 <- mean(forest.pred==test_loan$Loan_Status)
+accuracy_forest1
+```
+Here, we notice slight improvements on both samples where accuracy for the training sample is 83.74%. 
+
 ```{r}
 forest.cm_train <- confusionMatrix(forest.pred, test_loan$Loan_Status)
 forest.cm_train
 ```
-Here, we notice slight improvements on both samples where accuracy for the training sample is 83.74%. 
 
 
 Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, and rate stabilizes that at around 100 trees.
@@ -588,8 +608,13 @@ forest.cm2
 ```
 
 ```{r}
-forest.cm_train2 <- confusionMatrix(forest.pred2, test_loan$Loan_Status)
-forest.cm_train2
+accuracy_forest2 <- mean(forest.pred2==test_loan$Loan_Status)
+accuracy_forest2
+```
+
+```{r}
+forest.cm_tune <- confusionMatrix(forest.pred2, test_loan$Loan_Status)
+forest.cm_tune
 ```
 
 
@@ -618,7 +643,7 @@ legend("topright", colnames(fit.forest2$err.rate),col = 1:6, cex = 0.8, fill = 1
 ```{r}
 
 set.seed(1)
-boost<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 5000,cv.folds = 5)
+boost<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 1000,cv.folds = 5)
 ```
 
 gbm uses a default number of trees of 100, which is rarely sufficient. Consequently, I crank it up to 5,000 trees. The default depth of each tree (interaction.depth) is 1, which means we are ensembling a bunch of stumps. Lastly, I also include cv.folds to perform a 5 fold cross validation. 
@@ -648,7 +673,7 @@ plots indicating the optimum number of trees based on the technique used. Green 
 
 
 ```{r}
-boostPre<-predict(boost,test_loan,n.trees =27)
+boostPre<-predict.gbm(boost,test_loan, n.trees =23)
 boostPre<-ifelse(boostPre<1.5,1,2)
 
 
@@ -660,29 +685,39 @@ accuracy3
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ***
 
 #### **Part 5: Model Performance**
 
+```{r}
+temp <- data.frame(dtree.cm_train$overall, 
+                   dtree.cm_pruned$overall,
+                   forest.cm_train$overall,
+                   forest.cm_tune$overall) %>%
+  t() %>%
+  data.frame() %>%
+  dplyr::select(Accuracy) %>%
+  mutate(`Classification Error Rate` = 1-Accuracy)
+```
 
+```{r}
+eval <- data.frame(dtree.cm_train$byClass, 
+                   dtree.cm_pruned$byClass,
+                   forest.cm_train$byClass,
+                   forest.cm_tune$byClass)
+eval <- data.frame(t(eval)) %>%
+  cbind(temp) %>%
+  mutate(eval = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune")) 
+```
+
+```{r}
+eval <- dplyr::select(eval, Accuracy, `Classification Error Rate`, Sensitivity, Specificity, Precision, Recall, F1)
+rownames(eval) = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune")
+t_eval <- t(eval)
+colnames(t_eval) <- rownames(eval)
+rownames(t_eval) <- colnames(eval)
+knitr::kable(t_eval)
+```
 
 
 
