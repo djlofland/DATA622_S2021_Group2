@@ -160,38 +160,6 @@ kable(head(penguins)) %>% kable_styling(bootstrap_options = "basic")
 ***Splitting into training and testing datasets***  
 
 
-**Note from Zach**: I decided to run these functions higher up in the tidying section, but let me know if you'd prefer to adjust back to your code below!
-
-```{r}
-# aggr(penguins,bars=T, numbers=T, sortVars=T)
-# penguins<-kNN(penguins)
-# penguins<-subset(penguins,select=species:sex)
-# missmap(penguins)
-```
-
-```{r}
-# levels(penguins$species) <- c("Adelie", "Chinstrap", "Gentoo")
-# penguins$species<-as.numeric(penguins$species)
-# 
-# levels(penguins$island) <- c("Biscoe", "Dream", "Torgersen")
-# penguins$island<-as.numeric(penguins$island)
-# 
-# levels(penguins$sex) <- c("female", "male")
-# penguins$sex<-as.numeric(penguins$sex)
-```
-
-
-```{r}
-# normalize <- function(x) {
-# return ((x - min(x)) / (max(x) - min(x))) }
-# head(penguins)
-# penguins_Trans<- as.data.frame(lapply(penguins[,3:6], normalize))
-# penguins_Trans<-cbind(penguins[,1],penguins[,2],penguins_Trans,penguins[,7] )
-# colnames(penguins_Trans)<-c("species","island","bill_length_mm","bill_depth_mm","flipper_length_mm","body_mass_g","sex")
-# head(penguins_Trans)
-```
-
-
 With our dataset tidy'd, we were then able to split it into a training and test set.
 
 ```{r}
@@ -654,14 +622,20 @@ summary(boost)
 ```
 
 
-
 This creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.
+
+
 
 
 ```{r}
 #partial dependence plots
 plot(boost,i="LoanAmount")
+plot(boost,i="Income")
 
+```
+
+
+```{r}
 # plot loss function as a result of n trees added to the ensemble
 gbm.perf(boost, method = "cv")
 gbm.perf(boost,method="OOB")
@@ -675,11 +649,21 @@ plots indicating the optimum number of trees based on the technique used. Green 
 ```{r}
 boostPre<-predict.gbm(boost,test_loan, n.trees =23)
 boostPre<-ifelse(boostPre<1.5,1,2)
-
+table(boostPre,test_loan$Loan_Status)
 
 accuracy3<-mean(boostPre==test_loan$Loan_Status)
 accuracy3
 
+
+```
+
+#RICKI NOTE
+```{r}
+boostPre<-factor(boostPre)
+test_loan$Loan_Status<-factor(test_loan$Loan_Status)
+
+boost.cm <- confusionMatrix(boostPre, test_loan$Loan_Status)
+boost.cm
 ```
 
 
@@ -689,11 +673,19 @@ accuracy3
 
 #### **Part 5: Model Performance**
 
+
+***
+
+
+**Model performance: please compare the models you settled on for problem # 2 – 4.Comment on their relative performance. Which one would you prefer the most? Why?(20 points)**
+
+
 ```{r}
 temp <- data.frame(dtree.cm_train$overall, 
                    dtree.cm_pruned$overall,
                    forest.cm_train$overall,
-                   forest.cm_tune$overall) %>%
+                   forest.cm_tune$overall,
+                   boost.cm$overall) %>%
   t() %>%
   data.frame() %>%
   dplyr::select(Accuracy) %>%
@@ -704,15 +696,16 @@ temp <- data.frame(dtree.cm_train$overall,
 eval <- data.frame(dtree.cm_train$byClass, 
                    dtree.cm_pruned$byClass,
                    forest.cm_train$byClass,
-                   forest.cm_tune$byClass)
+                   forest.cm_tune$byClass,
+                   boost.cm$byClass)
 eval <- data.frame(t(eval)) %>%
   cbind(temp) %>%
-  mutate(eval = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune")) 
+  mutate(eval = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune", "Gradient Boosting")) 
 ```
 
 ```{r}
 eval <- dplyr::select(eval, Accuracy, `Classification Error Rate`, Sensitivity, Specificity, Precision, Recall, F1)
-rownames(eval) = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune")
+rownames(eval) = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune", "Gradient Boosting")
 t_eval <- t(eval)
 colnames(t_eval) <- rownames(eval)
 rownames(t_eval) <- colnames(eval)
@@ -723,12 +716,6 @@ knitr::kable(t_eval)
 
 
 
-
-
-
-***
-
-**Model performance: please compare the models you settled on for problem # 2 – 4.Comment on their relative performance. Which one would you prefer the most? Why?(20 points)**
 
 
 
