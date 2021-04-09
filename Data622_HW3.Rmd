@@ -1,27 +1,33 @@
 ---
-title: "Data 622 - Homework #3 "
+title: "Data 622 - Homework #3 (Group 2)"
 author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Grace Han, Zach Alexander"
 date: "4/5/2021"
 output: 
-  pdf_document:
-        extra_dependencies: ["geometry", "multicol", "multirow"]
-  md_document:
-    variant: markdown_github
   html_document:
-    df_print: paged
-    toc: yes
-    toc_collapsed: yes
-    toc_float: yes
-theme: lumen
-number_sections: yes
-toc_depth: 3
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float: true
+    code_folding: hide
+  pdf_document:
+    extra_dependencies: ["geometry", "multicol", "multirow", "xcolor"]
+#  md_document:
+#    variant: markdown_github
+#  pdf_document:
+#        extra_dependencies: ["geometry", "multicol", "multirow"]
+#theme: lumen
+#number_sections: yes
+#toc_depth: 3
 ---
 
+Source Code: [https://github.com/djlofland/DATA622_S2021_Group2/tree/master/Homework3](https://github.com/djlofland/DATA622_S2021_Group2/tree/master/Homework3)
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-```{r,include=FALSE}
+```{r, include=FALSE}
 require(palmerpenguins)
 require(dplyr)
 require(ggplot2)
@@ -44,13 +50,13 @@ require(naniar)
 require(mice)
 require(gbm)
 require(xgboost)
+library(skimr)
 ```
 
 
 ***
 
-#### **Part 1: KNN on the Penguins dataset**
-
+## **Part 1: KNN on the Penguins dataset**
 
 ***
 
@@ -58,44 +64,57 @@ require(xgboost)
 
 Similar to past assignments when using the Palmer Penguins dataset, we'll first do some quick exploratory analysis to examine the different features available.  
 
+### Load Data
+
 We can see below, that there are four continuous variables: `bill_length_mm`, `bill_depth_mm`, `flipper_length_mm` and `body_mass_g`. Additionally, there are a few categorical variables: `island`, `sex`, and `year`.  
 
 ```{r, echo=FALSE}
 penguins <- data.frame(penguins)
 
-kable(head(penguins)) %>% kable_styling(bootstrap_options = "basic")
+kable(head(penguins)) %>% 
+  kable_styling(bootstrap_options = "basic")
 ```
+
+### Feature Plots
 
 For the continuous variables, we can examine the distributions, broken out by the target variable, `species`:  
 
 ```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, echo=FALSE}
 penguins %>%
   dplyr::select(species, body_mass_g, bill_length_mm, bill_depth_mm, flipper_length_mm) %>%
-  ggpairs(aes(color = species))
+  ggpairs(aes(color = species, alpha = 0.9))
 ```
 
 By separating our distributions by our target variable, `species`, we can see that many of the feature interactions show clustering between Adelie and Chinstrap penguins (red and green), while Gentoo penguins tend to contrast the other two species for most interactions. This is also confirmed by most of the single-variable distributions split out by species in the plots below. With the exception of the distribution of `bill_length_mm`, distributions for `body_mass_g`, `bill_depth_mm`, and `flipper_length_mm` all show there to be overlapping distributions between Adelie and Chinstrap penguin species.  
 
-Next, we'll do some data tidying to get our dataset ready for our KNN model. Since `year` reflects the date/time of recording, and is not beneficial for our machine learning algorithm, we'll remove it from our dataset:  
+Next, we'll do some data tidying to get our data set ready for our KNN model. `year` reflects the date/time of recording and requires some additional thought.  If we hypothesize or expect that variability in penguin features could have a time dependent effect, then `year` could be important.  For example, if penguin food supplies vary year by year and this impacts growth or if yearly temperature affects penguin development, then `year` could matter.  If we thought global warming might be impacting penguins physical development or other natural disasters might have impacted grown on specific years, then again, `year` might matter.  That said, in this situation, *because we don't have any reason to expect a time dependent effect*, `year` probably doesn't add any explanatory power to our models and we can remove it from our data set:  
 
 ```{r}
-penguins <- penguins %>% dplyr::select(-year)
+penguins <- penguins %>% 
+  dplyr::select(-year)
 ```
+
+### Missing Value 
 
 Additionally, when looking at the number of missing values, we can see the following:  
 
-```{r}
+```{r warning=FALSE}
 penguins %>%
   summarise_all(funs(sum(is.na(.)))) %>%
   pivot_longer(cols = 1:7, names_to = 'columns', values_to = 'NA_count') %>%
   arrange(desc(NA_count)) %>%
   ggplot(aes(y = columns, x = NA_count)) + geom_col(fill = 'deepskyblue4') +
-  geom_label(aes(label = NA_count)) +
-  theme_minimal() +
-  labs(title = 'Count of missing values in penguins dataset') +
-  theme(plot.title = element_text(hjust = 0.5))
+    geom_label(aes(label = NA_count)) +
+    theme_minimal() +
+    labs(title = 'Count of missing values in penguins dataset') +
+    theme(plot.title = element_text(hjust = 0.5))
 ```
-We can see that 11 individuals have at least one missing data point. Therefore, we'll drop these from our dataset as well.  
+
+```{r}
+gg_miss_upset(penguins)
+```
+
+We can see that 11 individuals have at least one missing data point. The missing data points are clustered - two penguin records are missing `bill_length_mm`, `bill_depth_mm`, `flipper_length_mm`, `body_mass_g`, and `sex`.  None other penguin records missing just the `sex` data point.  We cannot do much with the 2 records missing most of their data, so those will be dropped.  For the records missing just `sex`, while we could try to KNN impute, we don't know enough about gender differences to know if that's a safe operation or whether it would introduce additional variability.  Therefore, we'll drop these from our data set as well.  
 
 ```{r}
 penguins <- na.omit(penguins)
@@ -104,13 +123,17 @@ penguins <- na.omit(penguins)
 Now, we can take a look at a summary of data before splitting to get a sense of what still needs to be tidy'd in order to get it ready for our KNN model:  
 
 ```{r}
-summary(penguins)
+skim(penguins)
 ```
+
 From above, we can see that we'll need to remove our `species` variable, and save it to a separate outcome variable in order to evaluate the performance of our KNN model later on. We can do this by running the following syntax:  
 
 ```{r}
-species_actual <- penguins %>% dplyr::select(species)
-penguins <- penguins %>% dplyr::select(-species)
+species_actual <- penguins %>% 
+  dplyr::select(species)
+
+penguins <- penguins %>% 
+  dplyr::select(-species)
 ```
 
 Additionally, we can see below in the distributions of each of our continuous variables that the scales are inconsistent across features. For better model performance, we'll want to standardize each of our features.
@@ -120,18 +143,27 @@ penguins %>%
   dplyr::select(body_mass_g, bill_length_mm, bill_depth_mm, flipper_length_mm) %>%
   ggpairs()
 ```
+
 In order to do this, we'll administer a z-score standardization to fix our scaling, which will ultimately help with our clustering.
 
 ```{r}
-penguins[, c("bill_length_mm","bill_depth_mm", "flipper_length_mm", "body_mass_g")] <- scale(penguins[, c("bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g")])
+penguins[, c("bill_length_mm", 
+             "bill_depth_mm", 
+             "flipper_length_mm", 
+             "body_mass_g")] <- scale(penguins[, c("bill_length_mm", 
+                                                   "bill_depth_mm", 
+                                                   "flipper_length_mm", 
+                                                   "body_mass_g")])
 ```
 
 As you can see below, after the z-score standardization, the scaling on the x and y axis is a lot more consistent across our features.
+
 ```{r, message=FALSE, warning=FALSE}
 penguins %>%
   dplyr::select(body_mass_g, bill_length_mm, bill_depth_mm, flipper_length_mm) %>%
   ggpairs()
 ```
+
 Although this may help with our KNN model, we'll have to be careful about interpretability later on! Finally, we'll want to dummy code our `island` and `sex` variables, since they are categorical, we'll need to convert them to 1s and 0s:  
 
 ```{r}
@@ -142,7 +174,8 @@ penguins <- cbind(penguins, island_dcode)
 We'll also want to remove our original `island` variable from this dataset, since we created our dummy variables:  
 
 ```{r}
-penguins <- penguins %>% dplyr::select(-island)
+penguins <- penguins %>% 
+  dplyr::select(-island)
 ```
 
 The same process will then be applied to the `sex` variable:  
@@ -151,50 +184,60 @@ The same process will then be applied to the `sex` variable:
 penguins$sex <- dummy.code(penguins$sex)
 ```
 
-Finally, after a fair amount of data tidying and investigation, our dataset is ready for our KNN model. We can take a quick look at the updated version of our dataset:  
+Finally, after a fair amount of data tidying and investigation, our data set is ready for our KNN model. We can take a quick look at the updated version of our data set:  
 
 ```{r, warning=FALSE, message=FALSE}
-kable(head(penguins)) %>% kable_styling(bootstrap_options = "basic")
+kable(head(penguins)) %>% 
+  kable_styling(bootstrap_options = "basic")
 ```
 ***
 
-***Splitting into training and testing datasets***  
+### Split Training/Test
 
-
-With our dataset tidy'd, we were then able to split it into a training and test set.
+With our data set tidied, we then split it into a training and test set.
 
 ```{r}
-sample_size<-floor(0.8*nrow(penguins))
-
 set.seed(123)
-train_ind<-sample(seq_len(nrow(penguins)),size=sample_size)
-train_penguins<-penguins[train_ind,]
-test_penguins<-penguins[-train_ind,]
+
+trainingRows <- createDataPartition(as.matrix(species_actual$species), p=0.8, list=FALSE)
+
+train_penguins <- penguins[trainingRows,]
+test_penguins <- penguins[-trainingRows,]
 ```
 
 We'll also do the same for our `target` variable, using the same split:  
 
 ```{r}
-species_actual_train <- species_actual$species[train_ind]
-species_actual_test <- species_actual$species[-train_ind]
+species_actual_train <- species_actual$species[trainingRows]
+species_actual_test <- species_actual$species[-trainingRows]
 ```
 
 ***
 
-***Fitting the KNN model***  
+### Fit kNN Model  
 
-Now, with our data split accordingly, we'll need to identify the appropriate number for k. To do this, we will first take a standard approach of calculating the square root of the number of rows in our training dataset:  
+Now, with our data split accordingly, we'll need to identify the appropriate number for k. To do this, we will first take a standard approach of calculating the square root of the number of rows in our training data set:  
 
 ```{r}
 sqrt(nrow(train_penguins))
 ```
+
 We can see above, that it is roughly between 16 and 17. Therefore, we'll perform two KNN models with k=16 and k=17:
 
 ```{r}
 set.seed(123) 
-k16<-knn(train_penguins,test_penguins,cl=species_actual_train,k=16)
-k17<-knn(train_penguins,test_penguins,cl=species_actual_train,k=17)
+
+k16 <- knn(train_penguins, 
+           test_penguins, 
+           cl=species_actual_train, 
+           k=16)
+
+k17 <- knn(train_penguins, 
+           test_penguins, 
+           cl=species_actual_train, 
+           k=17)
 ```
+
 ```{r}
 misClassError <- mean(k16 != species_actual_test)
 paste0('The number of misclassified penguins with 16 neighbors is: ', misClassError)
@@ -205,16 +248,23 @@ misClassError <- mean(k17 != species_actual_test)
 paste0('The number of misclassified penguins with 17 neighbors is: ', misClassError)
 table(k17, species_actual_test)
 ```
+
 From our resulting confusion matrices, that show the classified penguins from our KNN model compared to the actual species designations, we can see that both a k of 16 and a k of 17 preformed well on our test set. Essentially, the misclassification rate showed no difference with k=16 or k=17. Although this approach seemed to work quite effectively, we do need to be careful about how we'd go about using either one of these models to predict new data. With an artificially high k value, we could be underfitting the data.  
+
+### kNN train() with caret
 
 Therefore, as a final step, we can run one final KNN model using the `caret` package, where the built-in `train()` function will run KNN classification that automatically picks the optimal number of neighbors (k).  
 
 ```{r}
-knn_caret <- train(train_penguins, species_actual_train, method = "knn", preProcess = c("center", "scale"))
+knn_caret <- train(train_penguins, 
+                   species_actual_train, 
+                   method = "knn", 
+                   preProcess = c("center", "scale"))
 
 knn_caret
 ```
-From our output, we can see that a k value of 9 was chose as the optimal value for our model based on the Accuracy and Kappa values calculated. Since this inter-rater reliability metric of Kappa is quite important when working with unbalanced datasets such as our penguins dataset, this k value of 9 may ultimately perform better than our initial KNN models where k=16 or k=17. We can see this relationship determined by the `train` function for finding the optimal neighbors plotted below:  
+
+From our output, we can see that a k value of 9 was chose as the optimal value for our model based on the Accuracy and Kappa values calculated. Since this inter-rater reliability metric of Kappa is quite important when working with unbalanced data sets such as our penguins data set, this k value of 9 may ultimately perform better than our initial KNN models where k=16 or k=17. We can see this relationship determined by the `train` function for finding the optimal neighbors plotted below:  
 
 ```{r}
 plot(knn_caret)
@@ -226,25 +276,29 @@ We can see that a neighbors value of 9 clearly showed the highest accuracy value
 knn_caret_predictions <- predict(knn_caret, newdata = test_penguins)
 confusionMatrix(knn_caret_predictions, as.factor(species_actual_test))
 ```
-In the end, with the `caret` package identifying the "optimal" k-value, we can see that all three of our KNN models performed very well on our test dataset. Although it will likely depend on the utility of the KNN model, it does appear that any of our three models could be chose to provide accurate predictions of the three penguin species.  
+
+In the end, with the `caret` package identifying the "optimal" k-value, we can see that all three of our KNN models performed very well on our test data set. Although it will likely depend on the utility of the KNN model, it does appear that any of our three models could be chose to provide accurate predictions of the three penguin species.  
 
 ***
 
-#### **Part 2: Decision Trees on loan approval dataset**
-
+## **Part 2: Decision Trees on loan approval data set**
 
 ***
 
-**Please use the attached dataset on loan approval status to predict loan approval using Decision Trees. Please be sure to conduct a thorough exploratory analysis to start thetask and walk us through your reasoning behind all the steps you are taking.**  
+**Please use the attached dataset on loan approval status to predict loan approval using Decision Trees. Please be sure to conduct a thorough exploratory analysis to start the task and walk us through your reasoning behind all the steps you are taking.**  
 
-First, we decided to read in the loan approval dataset and take a look at its features:
+### Load Data
+
+First, we decided to read in the loan approval data set and take a look at its features:
 
 ```{r}
 loan <- read.csv("https://raw.githubusercontent.com/DaisyCai2019/NewData/master/Loan_approval.csv")
-kable(head(loan)) %>% kable_styling(bootstrap_options = "basic")
+
+kable(head(loan)) %>% 
+  kable_styling(bootstrap_options = "basic")
 ```
 
-As we can see from a glimpse of the dataset above, the following features are available:  
+As we can see from a glimpse of the data set above, the following features are available:  
 
 + **Loan_ID**: a unique identifier for each loan   
 + **Gender**: split into male/female  
@@ -262,16 +316,21 @@ As we can see from a glimpse of the dataset above, the following features are av
 
 ***
 
-***Exploratory data analysis of the loan approval dataset***  
+### Exploratory data analysis  
 
 Now, we can run some exploratory data analysis to get a better sense of how to tidy and interpret these features. Here's an initial summary of the dataset:  
+
 ```{r}
-summary(loan)
+skim(loan)
 ```
+
+#### Handle Missing Data
+
 We can see that there are a fair amount of things we'll need to do to clean the dataset before being able to run our decision tree algorithm. First, we can see that there quite a few missing values (NAs) in our `LoanAmount`, `Loan_Amount_Term` and `Credit_History` features. Also, we noticed that there were a lot of blank values, which needed to be recoded to NAs. Therefore, we used the `naniar` package below to handle this:  
 
 ```{r}
-loan <- loan %>% replace_with_na_all(condition = ~. == "")
+loan <- loan %>% 
+  replace_with_na_all(condition = ~. == "")
 ```
 
 
@@ -286,64 +345,74 @@ loan %>%
   labs(title = 'Count of missing values in penguins dataset') +
   theme(plot.title = element_text(hjust = 0.5))
 ```
-
+```{r}
+gg_miss_upset(loan)
+```
 
 This can be further visualized by the "Missingness Map" below:  
 
 ```{r, message=FALSE, warning=FALSE}
 missmap(loan)
-
 ```
 
+#### Fix Datatypes
 
-
-Before progressing, we thought it would be helpful to conduct some transformations on this data, as well as account for our N/As that we've discovered. To do this, we used the `factor` function on each feature:  
+Before progressing, we thought it would be helpful to conduct some transformations on this data, as well as account for NAs. To do this, we used the `factor` function on each feature:  
 
 ```{r}
-loan$Loan_Status<-factor(loan$Loan_Status)
+loan$Loan_Status <- factor(loan$Loan_Status)
 
-
-loan<-loan %>%
+loan <- loan %>%
            mutate(Gender = factor(Gender),
                   Married = factor(Married),
-                  Dependents=factor(Dependents),
-                  Education=factor(Education),
-                  Self_Employed=factor(Self_Employed),
-                  Property_Area=factor(Property_Area),
-                  Loan_Status=factor(Loan_Status))
+                  Dependents = factor(Dependents),
+                  Education = factor(Education),
+                  Self_Employed = factor(Self_Employed),
+                  Property_Area = factor(Property_Area),
+                  Loan_Status = factor(Loan_Status))
 
 summary(loan)
 ```
 
-Next, we'll want to take a look at the distributions of the continuous features, which appear to be `ApplicantIncome`, `CoapplicantIncome`, `LoanAmount`, and `Loan_Amount_Term`:  
+### Feature Plots
 
-```{r, message=FALSE, warning=FALSE, echo=FALSE}
+Next, we'll want to take a look at the distributions of the continuous features, which appear to be `ApplicantIncome`, `CoapplicantIncome`, `LoanAmount`, and `Loan_Amount_Term`.  We color coded `Loan_status` where blue is `Y` and red is `N` to help visualize patterns between the distributions and our feature distribution:  
+
+```{r echo=FALSE, fig.height=5, fig.width=5, message=FALSE, warning=FALSE}
 loan %>%
-  dplyr::select(ApplicantIncome, CoapplicantIncome, LoanAmount, Loan_Amount_Term) %>%
-  ggpairs()
+  dplyr::select(ApplicantIncome, CoapplicantIncome, LoanAmount, Loan_Amount_Term, Loan_Status) %>%
+  ggpairs(aes(color = Loan_Status, alpha = 0.9))
 ```
 
 We can see that `ApplicantIncome`, `CoapplicantIncome` and `LoanAmount` are highly right skewed, with long right tails. Conversely, it looks like `Loan_Amount_Term` is highly left skewed, with a long left tail.  
+
+### Target Plots
 
 Additionally, we can also take a look at the categorical variables, broken out by our target variable of whether or not a loan was issued to the applicant. From the green bars below, we can see the total amount of loan approvals, relative to the red bars below documenting the loan denials. 
 
 ```{r, echo=FALSE}
 par(mfrow=c(2,3))
+
 tbl1 <- table(loan$Loan_Status, loan$Gender)
 barplot(tbl1, main="Loan Status by Gender",
         xlab="Gender", col=c("darksalmon","darkolivegreen3"))
+
 tbl2 <- table(loan$Loan_Status, loan$Education)
 barplot(tbl2, main="Loan Status by Education",
         xlab="Education", col=c("darksalmon","darkolivegreen3"))
+
 tbl3 <- table(loan$Loan_Status, loan$Married)
 barplot(tbl3, main="Loan Status by Married",
         xlab="Married", col=c("darksalmon","darkolivegreen3"))
+
 tbl4 <- table(loan$Loan_Status, loan$Self_Employed)
 barplot(tbl4, main="Loan Status by Self Employed",
         xlab="Self_Employed", col=c("darksalmon","darkolivegreen3"))
+
 tbl5 <- table(loan$Loan_Status, loan$Property_Area)
 barplot(tbl5, main="Loan Status by Property_Area",
         xlab="Property_Area", col=c("darksalmon","darkolivegreen3"))
+
 tbl6 <- table(loan$Loan_Status, loan$Credit_History)
 barplot(tbl6, main="Loan Status by Credit_History",
         xlab="Credit_History", col=c("darksalmon","darkolivegreen3"))
@@ -357,7 +426,7 @@ From the categorical variable splits based on loan approval status, we can see a
 
 + Whether or not the applicant was self employed or married also showed a pretty large class imbalance, where those that identified as not self employed and those that identified as married had higher proportions of applicants in this dataset than those that did not identify by those two characteristics.  
 
-+ There was a pretty even split in the number of applicants based on property area, where someone identifying that they live in rural, semiurban, or urban settings were pretty evenly distributed.  
++ There was a pretty even split in the number of applicants based on property area, where someone identifying that they live in *rural*, *semiurban*, or *urban* settings were pretty evenly distributed.  
 
 + We can see that applicants that did not pass the credit history criteria were almost always likely to be denied a loan.  
 
@@ -365,21 +434,24 @@ These factors will be interesting to examine and discuss as we look to build our
 
 ***
 
-***Imputing our data to reconcile missing values (NAs) and adjust transformations***  
+### Impute missing
 
-Since there were a large amount of missing values that we identified above, we can use KNN() to help with our imputations. With the kNN method, a categorical missing value is imputed with the majority among its k nearest neighbors, and the average value (mean) of the k nearest neighbors is regarded as the prediction for a numerical missing value.
+Since there were a large amount of missing values that we identified above, we can use KNN() to help with our imputations. With the KNN method, a categorical missing value is imputed with the majority among its k nearest neighbors, and the average value (mean) of the k nearest neighbors is regarded as the prediction for a numerical missing value.
 
 ```{r}
-loan<-kNN(loan)%>%
-          subset(select = Loan_ID:Loan_Status)
+loan <- kNN(loan) %>%
+  subset(select = Loan_ID:Loan_Status)
 ```
 
-
 Now, we can double check that this worked correctly by running syntax to find any missing values:
+
 ```{r, warning=FALSE, message=FALSE}
 sapply(loan, function(x) sum(is.na(x)))
 ```
+
 Fortunately, we can see that there are now no missing data points!
+
+### Apply Transforms
 
 Next, we'll have to work through a few transformations for our highly skewed continuous data. For our `LoanAmount` feature, we can conduct a log transformation:  
 
@@ -390,6 +462,7 @@ loan$LogLoan_Amount_Term <- log(loan$Loan_Amount_Term)
 
 ```{r, echo=FALSE}
 par(mfrow=c(1,2))
+
 hist(loan$LoanAmount, 
      main="Histogram for Loan Amount", 
      xlab="Loan Amount", 
@@ -397,6 +470,7 @@ hist(loan$LoanAmount,
      col="gray",
      las=1, 
      breaks=20, prob = TRUE)
+
 hist(loan$LogLoanAmount, 
      main="Histogram for Log Loan Amount", 
      xlab="Loan Amount (transformed)", 
@@ -406,7 +480,7 @@ hist(loan$LogLoanAmount,
      breaks=20, prob = TRUE)
 ```
 
-Next, since there is a lot of relateability between the `ApplicantIncome` variable and `CoapplicantIncome` variable, we thought it would be best to combine these two variables to create an `Income` variable, and then perform a log transformation to obtain the best results.  
+Banks generally don't want loan payments to exceed 25% of an applicants income.  Most banks will add the co-applicant income to the applicant income and treat the sum in their decision criteria.  For this reason, we combine `ApplicantIncome` and `CoapplicantIncome` into a single `Income` feature and drop the separate `ApplicantIncome` and `CoapplicantIncome`.  Next we perform a log transformation on `Income` to obtain the best results.  
 
 ```{r}
 loan$Income <- loan$ApplicantIncome + loan$CoapplicantIncome
@@ -426,49 +500,47 @@ hist(loan$LogIncome,
      las=1, 
      breaks=50, prob = TRUE)
 ```
+
 With the exploratory data analysis behind us, and our data tidy'd, we are now ready to run our decision tree!  
 
-***
-
-***Splitting loan dataset into training and testing datasets***  
+### Split Training/Test
 
 Similar to our KNN model process above, we'll determine an 80/20 split for our testing and training datasets:  
 
 ```{r}
 set.seed(123)
-train_sample<-sample(1:nrow(loan),size = floor(0.80*nrow(loan)))
-train_loan<-loan[train_sample,]
-test_loan<-loan[-train_sample,]
+
+trainingRows <- createDataPartition(as.matrix(species_actual$species), p=0.8, list=FALSE)
+
+train_loan<-loan[trainingRows,]
+test_loan<-loan[-trainingRows,]
 ```
-
-***
-
-***Splitting loan dataset into training and testing datasets***  
 
 With the data split, we can now run our first decision tree:  
 
 ```{r}
-tree1 <- rpart(Loan_Status~Gender+Married+Dependents+Education+Self_Employed+LogIncome+LogLoanAmount+Loan_Amount_Term+Credit_History+Property_Area,data=train_loan)
-rpart.plot(tree1,nn=TRUE)
+tree1 <- rpart(Loan_Status ~ Gender + Married + Dependents + Education + 
+                 Self_Employed + LogIncome + LogLoanAmount + Loan_Amount_Term + 
+                 Credit_History + Property_Area, 
+               data=train_loan)
+
+rpart.plot(tree1, nn=TRUE)
 summary(tree1)
 ```
+### Predictions
 
-From our decision tree summary and plot, we can see that a few variables, such as `Credit_History`, `Income` and `LoanAmount`, were important features in this classification method. We can use this decision tree to make predictions on our holdout test set.
-
-```{r}
-loanPre<-predict(tree1,test_loan,type="class")
-table(loanPre,test_loan$Loan_Status,dnn=c("Actual", "Predicted"))
-accuracy_tree1<-mean(loanPre==test_loan$Loan_Status)
-accuracy_tree1
-```
-As we can see from our predictions and the ensuing confusion matrix, we were able to obtain about 79% accuracy using this decision tree. To achieve higher accuracy, we'll use the `prune()` function in the `rpart` package to examine a predicted optimal tree size. 
-
+From our decision tree summary and plot, we can see that a few variables, such as `Credit_History`, `Income` and `LoanAmount`, were the most important features in this classification method. We can use this decision tree to make predictions on our holdout test set.
 
 ```{r}
-dtree.cm_train <- confusionMatrix(loanPre, test_loan$Loan_Status)
-dtree.cm_train
+loanPre <- predict(tree1, 
+                   test_loan, 
+                   type="class",
+                   control = rpart.control(minsplit = 20, xval = 81, cp = 0.01))
+
+confusionMatrix(loanPre, test_loan$Loan_Status)
 ```
 
+As we can see from our predictions and the confusion matrix, we were able to obtain about 68% accuracy using this decision tree. To achieve higher accuracy, we'll use the `prune()` function in the `rpart` package to examine a predicted optimal tree size. 
 
 ```{r}
 plotcp(tree1)
@@ -478,145 +550,150 @@ By plotting the cross-validated error against the complexity parameter, we can s
 ```{r}
 tree1$cptable
 ```
-Although this is the case, when using this cp value in our `prune()` function, we still obtain accuracy ratings of around 79%. In order to test difference complexity parameters, we also decided to use our cp value of 0.41025641, which is a tree size of 1. When we use this tree size, and prune our initial tree accordingly, we can see the resulting decision tree below:  
+
+### Tuning
+
+Although this is the case, when using this cp value in our `prune()` function, we still obtain accuracy ratings of around 68%. In order to test difference complexity parameters, we also decided to use our cp value of 0.01647059, which is a tree size of 2. When we use this tree size, and prune our initial tree accordingly, we can see the resulting decision tree below:  
 
 ```{r}
-tree1.pruned <- prune(tree1, cp=0.41025641)
-prp(tree1.pruned, type = 2, extra = 104, fallen.leaves = TRUE, main = "Decision Tree")
+tree1.pruned <- prune(tree1, cp=0.01647059)
+
+rpart.plot(tree1.pruned, 
+           extra = 104, 
+           main = "Decision Tree")
 ```
 
-Interestingly, from this pruning process, the `Credit_History` feature alone seems to do a fairly good job of classifying applicants into the approval vs. disapproval status. The accuracy is about 83% on our test set, which is slightly higher than our initial tree.  
+Interestingly, from this pruning process, the `Credit_History` feature alone seems to do a fairly good job of classifying applicants into the approval vs. disapproval status. The accuracy is about 86% on our test set, which is slightly higher than our initial tree.  
 
 However, it's important to think critically about whether or not this pruned tree would perform better on another dataset, and if it is applicable for real-life events. 
-```{r}
-tree1.pruned.pred <- predict(tree1.pruned, test_loan, type = "class" )
-tree1.pruned.perf <- table(test_loan$Loan_Status, tree1.pruned.pred, dnn = c("Actual", "Predicted"))
-
-tree1.pruned.perf
-accuracy_tree2<-mean(tree1.pruned.pred==test_loan$Loan_Status)
-accuracy_tree2
-```
 
 ```{r}
-dtree.cm_pruned <- confusionMatrix(tree1.pruned.pred, test_loan$Loan_Status)
-dtree.cm_pruned
+tree1.pruned.pred <- predict(tree1.pruned, 
+                             test_loan, 
+                             type = "class" )
+
+confusionMatrix(tree1.pruned.pred, test_loan$Loan_Status)
 ```
 
-
-
-In the end, we'd likely want to go with a more robust decision tree, than just one feature, but not getting too large in size -- which is why our initial tree seems to be a good balance between these two phenomenon.  
+While a single feature does offer fairly good accuracy, there may be mitigating information from other features that would affect a loan decision which is lost if we only include a single feature.  While decision trees are simple to construct and understand, their weakness is that they follow a simple linear path for decision making.  This linear flow doesn't allow for downstream features to alter or influence potential predictions.
 
 ***
 
-#### **Part 3: Random Forests on loan approval dataset**
-
+## **Part 3: Random Forests on loan approval dataset**
 
 ***
 
 **Using the same dataset on Loan Approval Status, please use Random Forests to predict on loan approval status. Again, please be sure to walk us through the steps you took to get to your final model. (50 points)**
 
+### Initial Model
 
 ```{r}
-fit.forest <- randomForest(Loan_Status~Gender+Married+Dependents+Education+Self_Employed+LogIncome+LogLoanAmount+Loan_Amount_Term+Credit_History+Property_Area,data=train_loan)
+set.seed(123)
+fit.forest <- randomForest(Loan_Status ~ Gender + Married + Dependents + 
+                             Education + Self_Employed + LogIncome + 
+                             LogLoanAmount + Loan_Amount_Term + 
+                             Credit_History + Property_Area,
+                           data=train_loan)
 
 fit.forest
+
 importance(fit.forest)
 ```
 
 ```{r}
-forest.pred <- predict(fit.forest, newdata = test_loan)
-forest.cm <- table(test_loan$Loan_Status, forest.pred,
-                     dnn=c("Actual", "Predicted"))
-forest.cm
+forest.pred <- predict(fit.forest, 
+                       newdata = test_loan)
+
+(dtree.cm_train <- confusionMatrix(forest.pred, test_loan$Loan_Status))
 ```
 
-```{r}
-accuracy_forest1 <- mean(forest.pred==test_loan$Loan_Status)
-accuracy_forest1
-```
-Here, we notice slight improvements on both samples where accuracy for the training sample is 83.74%. 
-
-```{r}
-forest.cm_train <- confusionMatrix(forest.pred, test_loan$Loan_Status)
-forest.cm_train
-```
-
+Here, we notice slight improvements on both samples where accuracy for the training sample is 82.37%. Notice the disparity between Specificity and Sensitivity.  This model has a high false positive rate and tends to over predict `Y` when it should have chosen `N`.
 
 Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, and rate stabilizes that at around 100 trees.
+
 ```{r}
-plot(fit.forest, col = c("black", "red", "dark green"), main = "Predicted Loan Error Rates")
-legend("topright", colnames(fit.forest$err.rate),col = 1:6, cex = 0.8, fill = 1:6)
+plot(fit.forest, 
+     col = c("black", "red", "dark green"), 
+     main = "Predicted Loan Error Rates")
+
+legend("topright", colnames(fit.forest$err.rate), col = 1:6, cex = 0.8, fill = 1:6)
 ```
 
+### Tuning
 
-In order to see whether the Random forest model can be improved, We will run the same model but this time we will use tuneRF function. X request for the variable of the dataset, but the target value, while Y is the target value. Stepfactor increases or decreases the Mtry at each iteration. The plot is whether to plot the OOB error as a function of Mtry. Ntreetry is the number of the number of trees used at the tuning step. Trace is whether to print the progress of the search and Improve the (relative) improvement in OOB error must be by this much for the search to continue.
+In order to see whether the Random forest model can be improved, we will run the same model, but this time we will use the `tuneRF` function. We provide the features, x, target, y, and number of trees used at each tuning step, `ntreeTry`.
 
 The values were assigned randomly initially, and they have tweaked until the optimal was found.
 
 ```{r}
-tree_var <- tuneRF(x = subset(train_loan, select = -Loan_Status), y=train_loan$Loan_Status, ntreeTry = 1000)
+set.seed(123)
+
+tree_var <- tuneRF(x = subset(train_loan, select = -Loan_Status), 
+                   y = train_loan$Loan_Status, 
+                   ntreeTry = 1000)
 ```
 
-The Random Forest model is re-run with the new parameter Ntree= 1000 and Mtry=3
+We rerun the Random Forest model with the new parameter $Ntree = 1000$ and $Mtry = 3$
 
 ```{r}
+set.seed(123)
+
 val_opt <- tree_var [,"mtry"][which.min(tree_var [,"OOBError"])]
-fit.forest2 <- randomForest(Loan_Status ~Gender+Married+Dependents+Education+Self_Employed+LogIncome+LogLoanAmount+Loan_Amount_Term+Credit_History+Property_Area,data=train_loan, importance = TRUE, ntree=1000, mtry = val_opt)
+
+fit.forest2 <- randomForest(Loan_Status  ~ Gender + Married + Dependents + 
+                              Education + Self_Employed + LogIncome + 
+                              LogLoanAmount + Loan_Amount_Term + 
+                              Credit_History + Property_Area,
+                            data=train_loan, 
+                            importance = TRUE, 
+                            ntree=1000, 
+                            mtry = val_opt)
 
 fit.forest2
 ```
 
-
-The results of the trained Random Forest model are an out of bag error of 21.18 %, which is higher than the original model 19.35%, Although, it still a good result it has got worse with the tune. 
-
-```{r}
-forest.pred2 <- predict(fit.forest2, newdata = test_loan)
-forest.cm2 <- table(test_loan$Loan_Status, forest.pred2,
-                     dnn=c("Actual", "Predicted"))
-forest.cm2
-```
+The results of the trained Random Forest model are an out of bag error of 22.39%, which is higher than the original model 23.88%, Although, it still a good result it has got worse with the tuning. 
 
 ```{r}
-accuracy_forest2 <- mean(forest.pred2==test_loan$Loan_Status)
-accuracy_forest2
-```
+forest.pred2 <- predict(fit.forest2, 
+                        newdata = test_loan)
 
-```{r}
-forest.cm_tune <- confusionMatrix(forest.pred2, test_loan$Loan_Status)
-forest.cm_tune
+(forest.cm_train <- confusionMatrix(forest.pred2, test_loan$Loan_Status))
 ```
-
 
 Here, we notice there has the same accuracy as previous one for the training sample is 82.11%. The tuned model has performed worse than the test data set than the original Random Forest. The accuracy is slightly decreased, and the 95 % CI has decreased a bit too. 
 
-
 Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, and rate stabilizes that at around 20 trees.
+
 ```{r}
-plot(fit.forest2, col = c("black", "red", "dark green"), main = "Predicted Loan Error Rates")
-legend("topright", colnames(fit.forest2$err.rate),col = 1:6, cex = 0.8, fill = 1:6)
+plot(fit.forest2, 
+     col = c("black", "red", "dark green"), 
+     main = "Predicted Loan Error Rates")
+
+legend("topright", colnames(fit.forest2$err.rate), col = 1:6, cex = 0.8, fill = 1:6)
 ```
-
-
-
-
 
 ***
 
-#### **Part 4: Gradient Boosting**
-
+## **Part 4: Gradient Boosting**
 
 ***
 
 **Using the Loan Approval Status data, please use Gradient Boosting to predict on the loan approval status. Please use whatever boosting approach you deem appropriate;but please be sure to walk us through your steps. (50 points)**
 
-```{r}
+### Initial Model
 
-set.seed(1)
-boost<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 1000,cv.folds = 3)
+```{r}
+set.seed(123)
+
+boost <- gbm(Loan_Status~., 
+             data=train_loan[,-1],
+             distribution = "gaussian",
+             n.trees = 1000,
+             cv.folds = 3)
 ```
 
 gbm uses a default number of trees of 100, which is rarely sufficient. Consequently, I crank it up to 1,000 trees. The default depth of each tree (interaction.depth) is 1, which means we are ensembling a bunch of stumps. Lastly, I also include cv.folds to perform a 3 fold cross validation. 
-
 
 ```{r}
 boost
@@ -624,26 +701,28 @@ sqrt(min(boost$cv.error))
 summary(boost)
 ```
 The best cross-validation iteration was 34 and the RMSE is 0.3913894
-The summary of output creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.From the table, we can see LoanAmount, income and Credit_History is the top three most important vaiable for our model.
 
+The summary of output creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.From the table, we can see `LoanAmount`, `LogIncome` and `Credit_History` are the top three most important variable for our model.
 
-
-*** Tuning ***
+### Tuning
 
 We could tune parameters to see how the results change. Here, I increase the number of trees and also perform a 5 fold cross validation.
 
-
 ```{r}
+set.seed(123)
 
-set.seed(1)
-boost2<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 2000,cv.folds = 5)
+boost2<-gbm(Loan_Status~., 
+            data=train_loan[,-1],
+            distribution = "gaussian",
+            n.trees = 2000,
+            cv.folds = 5)
+
 sqrt(min(boost2$cv.error))
+
 summary(boost2)
 ```
 
-
 We can see the number of relative influence of each variable change and also the RMSE change to 0.3900092, lower than our previous model.
-
 
 The partial Dependence Plots tell us the relationship and dependence of the variables X with the Response variable Y.
 
@@ -655,37 +734,35 @@ plot(boost2,i="Income")
 ```
 The first plot shows loanAmount is negatively correlated with the response Loan_Status before 300K. The second plot indicate income is positively correlated with Loan_Status when it less than $20,000.
 
-```{r}
+```{r warning=FALSE}
 # plot loss function as a result of n trees added to the ensemble
 gbm.perf(boost2, method = "cv")
-gbm.perf(boost2,method="OOB")
+gbm.perf(boost2, method = "OOB")
 
 ```
 
-The plots indicating the optimum number of trees based on the technique we used. Green line indicates Error on test and the blue dotted line points the optimum number of iterations.We can observe that the beyond a certain a point (55 iterations for the “cv” method and 40 for the "OOB" method), the error on the test data appears to increase because of overfitting. 
+The plots indicating the optimum number of trees based on the technique we used. The green line indicates error on test and the blue dotted line points the optimum number of iterations. We can observe that the beyond a certain a point (55 iterations for the `cv` method and 40 for the `OOB` method), the error on the test data appears to increase because of overfitting. 
 
+We use model 2 to forecast our data. According to the `cv` method, we choose 55 as the number of trees.
 
-We use model 2 to forcast our data.According to the "cv" method, we choose 55 as the number of trees.
 ```{r}
-boostPre<-predict.gbm(boost2,test_loan, n.trees =55)
-boostPre<-ifelse(boostPre<1.5,1,2)
-boostPre<-factor(boostPre)
-test_loan$Loan_Status<-factor(test_loan$Loan_Status)
+boostPre <- predict.gbm(boost2, 
+                        test_loan, 
+                        n.trees = 55)
 
-boost.cm <- confusionMatrix(boostPre, test_loan$Loan_Status)
-boost.cm
+boostPre <- ifelse(boostPre < 1.5, 'N', 'Y')
+boostPre <- as.factor(boostPre)
+
+(boost.cm <- confusionMatrix(boostPre, test_loan$Loan_Status))
 ```
 
-According to the Confusion matrix, Our model accuracy is 0.8293. 
-
-
-***
-
-#### **Part 5: Model Performance**
-
+According to the Confusion matrix, Our model accuracy is 0.841. Looking at Sensitivity and Specificaity, this model is has a far lower False Negative rate and is less likely to pick 'N' when it shouldn't.  However, it's False positive rate is higher and where it picked 'Y' when it should have predicted 'N'. 
 
 ***
 
+## **Part 5: Model Performance**
+
+***
 
 **Model performance: please compare the models you settled on for problem # 2 – 4.Comment on their relative performance. Which one would you prefer the most? Why?(20 points)**
 
