@@ -703,9 +703,9 @@ forest.pred2 <- predict(fit.forest2,
 (forest.cm_train <- confusionMatrix(forest.pred2, test_loan$Loan_Status))
 ```
 
-When we subject our second Random Forest Model to make predictions on our test set, we notice that there is slightly higher accuracy than our previous model, which is roughly 84.1%. The tuned model has performed worse than the test data set than the original Random Forest. The accuracy is slightly decreased, and the 95 % CI has decreased a bit too. 
+When we subject our second Random Forest Model to make predictions on our test set, we notice that there is slightly higher accuracy than our previous model, which is roughly 84.1%. The tuned model has performed better than the test data set than the original Random Forest. The accuracy is slightly increased, and the 95 % CI has increase a bit too. 
 
-Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, and rate stabilizes that at around 20 trees.
+Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, increasing a little bit with 20-50 trees, and rate stabilizes that at around 100 trees.
 
 ```{r}
 plot(fit.forest2, 
