@@ -286,15 +286,16 @@ loan %>%
   labs(title = 'Count of missing values in penguins dataset') +
   theme(plot.title = element_text(hjust = 0.5))
 ```
+
+
 This can be further visualized by the "Missingness Map" below:  
 
 ```{r, message=FALSE, warning=FALSE}
 missmap(loan)
-loan<-kNN(loan)%>%
-          subset(select = Loan_ID:Loan_Status)
 
-summary(loan)
 ```
+
+
 
 Before progressing, we thought it would be helpful to conduct some transformations on this data, as well as account for our N/As that we've discovered. To do this, we used the `factor` function on each feature:  
 
@@ -366,13 +367,11 @@ These factors will be interesting to examine and discuss as we look to build our
 
 ***Imputing our data to reconcile missing values (NAs) and adjust transformations***  
 
-Since there were a large amount of missing values that we identified above, we can use the `mice` package to help with our imputations. This package helps in imputing missing values with plausible data values. These values are inferred from a distribution that is designed for each missing data point.  
+Since there were a large amount of missing values that we identified above, we can use KNN() to help with our imputations. With the kNN method, a categorical missing value is imputed with the majority among its k nearest neighbors, and the average value (mean) of the k nearest neighbors is regarded as the prediction for a numerical missing value.
 
-From the mice documentation, we can determine that "mice" stands for multiple imputation by chained equations. The 'm' argument in the function indicates how many rounds of imputation we want to do. In our case, we'll do two rounds of imputation (arbitrarily). The 'method' argument indicates which of the many methods for imputations we want to use. I chose CART which stands for classification and regression trees. This method seems to work with all variables types, and will provide flexibility for us as we move forward. 
-
-```{r, echo=FALSE, eval=FALSE}
-loan_imputed <- mice(loan, m=2, maxit = 2, method = 'cart', seed = 500)
-loan <- complete(loan_imputed, 2)
+```{r}
+loan<-kNN(loan)%>%
+          subset(select = Loan_ID:Loan_Status)
 ```
 
 
@@ -485,6 +484,7 @@ Although this is the case, when using this cp value in our `prune()` function, w
 tree1.pruned <- prune(tree1, cp=0.41025641)
 prp(tree1.pruned, type = 2, extra = 104, fallen.leaves = TRUE, main = "Decision Tree")
 ```
+
 Interestingly, from this pruning process, the `Credit_History` feature alone seems to do a fairly good job of classifying applicants into the approval vs. disapproval status. The accuracy is about 83% on our test set, which is slightly higher than our initial tree.  
 
 However, it's important to think critically about whether or not this pruned tree would perform better on another dataset, and if it is applicable for real-life events. 
@@ -662,12 +662,12 @@ gbm.perf(boost2,method="OOB")
 
 ```
 
-The plots indicating the optimum number of trees based on the technique we used. Green line indicates Error on test and the blue dotted line points the optimum number of iterations.We can observe that the beyond a certain a point (27 iterations for the “cv” method and 79 for the "OOB" method), the error on the test data appears to increase because of overfitting. 
+The plots indicating the optimum number of trees based on the technique we used. Green line indicates Error on test and the blue dotted line points the optimum number of iterations.We can observe that the beyond a certain a point (55 iterations for the “cv” method and 40 for the "OOB" method), the error on the test data appears to increase because of overfitting. 
 
 
-We use model 2 to forcast our data.According to the "cv" method, we choose 27 as the number of trees.
+We use model 2 to forcast our data.According to the "cv" method, we choose 55 as the number of trees.
 ```{r}
-boostPre<-predict.gbm(boost2,test_loan, n.trees =27)
+boostPre<-predict.gbm(boost2,test_loan, n.trees =55)
 boostPre<-ifelse(boostPre<1.5,1,2)
 boostPre<-factor(boostPre)
 test_loan$Loan_Status<-factor(test_loan$Loan_Status)
@@ -676,7 +676,7 @@ boost.cm <- confusionMatrix(boostPre, test_loan$Loan_Status)
 boost.cm
 ```
 
-According to the Confusion matrix, Our model accuracy is 0.8292683. 
+According to the Confusion matrix, Our model accuracy is 0.8293. 
 
 
 ***
@@ -692,9 +692,7 @@ According to the Confusion matrix, Our model accuracy is 0.8292683.
 
 ```{r}
 temp <- data.frame(dtree.cm_train$overall, 
-                   dtree.cm_pruned$overall,
                    forest.cm_train$overall,
-                   forest.cm_tune$overall,
                    boost.cm$overall) %>%
   t() %>%
   data.frame() %>%
@@ -704,18 +702,16 @@ temp <- data.frame(dtree.cm_train$overall,
 
 ```{r}
 eval <- data.frame(dtree.cm_train$byClass, 
-                   dtree.cm_pruned$byClass,
                    forest.cm_train$byClass,
-                   forest.cm_tune$byClass,
                    boost.cm$byClass)
 eval <- data.frame(t(eval)) %>%
   cbind(temp) %>%
-  mutate(eval = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune", "Gradient Boosting")) 
+  mutate(eval = c("Decision Tree", "Random Forest", "Gradient Boosting")) 
 ```
 
 ```{r}
 eval <- dplyr::select(eval, Accuracy, `Classification Error Rate`, Sensitivity, Specificity, Precision, Recall, F1)
-rownames(eval) = c("Decision Tree", "Decision Tree with Prune", "Random Forest", "Random Forest with Tune", "Gradient Boosting")
+rownames(eval) = c("Decision Tree",  "Random Forest", "Gradient Boosting")
 t_eval <- t(eval)
 colnames(t_eval) <- rownames(eval)
 rownames(t_eval) <- colnames(eval)
