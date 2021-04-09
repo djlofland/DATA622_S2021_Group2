@@ -3,15 +3,15 @@ title: "Data 622 - Homework #3 "
 author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Grace Han, Zach Alexander"
 date: "4/5/2021"
 output: 
+  pdf_document:
+        extra_dependencies: ["geometry", "multicol", "multirow"]
+  md_document:
+    variant: markdown_github
   html_document:
     df_print: paged
     toc: yes
     toc_collapsed: yes
     toc_float: yes
-  md_document:
-    variant: markdown_github
-  pdf_document:
-        extra_dependencies: ["geometry", "multicol", "multirow"]
 theme: lumen
 number_sections: yes
 toc_depth: 3
