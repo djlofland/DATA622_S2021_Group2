@@ -43,6 +43,7 @@ require(kableExtra)
 require(naniar)
 require(mice)
 require(gbm)
+require(xgboost)
 ```
 
 
@@ -611,54 +612,63 @@ legend("topright", colnames(fit.forest2$err.rate),col = 1:6, cex = 0.8, fill = 1
 ```{r}
 
 set.seed(1)
-boost<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 1000,cv.folds = 5)
+boost<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 1000,cv.folds = 3)
 ```
 
-gbm uses a default number of trees of 100, which is rarely sufficient. Consequently, I crank it up to 5,000 trees. The default depth of each tree (interaction.depth) is 1, which means we are ensembling a bunch of stumps. Lastly, I also include cv.folds to perform a 5 fold cross validation. 
+gbm uses a default number of trees of 100, which is rarely sufficient. Consequently, I crank it up to 1,000 trees. The default depth of each tree (interaction.depth) is 1, which means we are ensembling a bunch of stumps. Lastly, I also include cv.folds to perform a 3 fold cross validation. 
 
 
 ```{r}
+boost
+sqrt(min(boost$cv.error))
 summary(boost)
+```
+The best cross-validation iteration was 34 and the RMSE is 0.3913894
+The summary of output creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.From the table, we can see LoanAmount, income and Credit_History is the top three most important vaiable for our model.
+
+
+
+*** Tuning ***
+
+We could tune parameters to see how the results change. Here, I increase the number of trees and also perform a 5 fold cross validation.
+
+
+```{r}
+
+set.seed(1)
+boost2<-gbm(Loan_Status~., data=train_loan[,-1],distribution = "gaussian",n.trees = 2000,cv.folds = 5)
+sqrt(min(boost2$cv.error))
+summary(boost2)
 ```
 
 
-This creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.
+We can see the number of relative influence of each variable change and also the RMSE change to 0.3900092, lower than our previous model.
 
 
-
+The partial Dependence Plots tell us the relationship and dependence of the variables X with the Response variable Y.
 
 ```{r}
 #partial dependence plots
-plot(boost,i="LoanAmount")
-plot(boost,i="Income")
+plot(boost2,i="LoanAmount")
+plot(boost2,i="Income")
 
 ```
-
+The first plot shows loanAmount is negatively correlated with the response Loan_Status before 300K. The second plot indicate income is positively correlated with Loan_Status when it less than $20,000.
 
 ```{r}
 # plot loss function as a result of n trees added to the ensemble
-gbm.perf(boost, method = "cv")
-gbm.perf(boost,method="OOB")
+gbm.perf(boost2, method = "cv")
+gbm.perf(boost2,method="OOB")
 
 ```
 
-plots indicating the optimum number of trees based on the technique used. Green line indicates Error on test and the blue dotted line points the optimum number of iterations.We can observe that the beyond a certain a point (27 iterations for the “cv” method and 79 for the "OOB" method), the error on the test data appears to increase because of overfitting. 
+The plots indicating the optimum number of trees based on the technique we used. Green line indicates Error on test and the blue dotted line points the optimum number of iterations.We can observe that the beyond a certain a point (27 iterations for the “cv” method and 79 for the "OOB" method), the error on the test data appears to increase because of overfitting. 
 
 
-
+We use model 2 to forcast our data.According to the "cv" method, we choose 27 as the number of trees.
 ```{r}
-boostPre<-predict.gbm(boost,test_loan, n.trees =23)
+boostPre<-predict.gbm(boost2,test_loan, n.trees =27)
 boostPre<-ifelse(boostPre<1.5,1,2)
-table(boostPre,test_loan$Loan_Status)
-
-accuracy3<-mean(boostPre==test_loan$Loan_Status)
-accuracy3
-
-
-```
-
-#RICKI NOTE
-```{r}
 boostPre<-factor(boostPre)
 test_loan$Loan_Status<-factor(test_loan$Loan_Status)
 
@@ -666,7 +676,7 @@ boost.cm <- confusionMatrix(boostPre, test_loan$Loan_Status)
 boost.cm
 ```
 
-
+According to the Confusion matrix, Our model accuracy is 0.8292683. 
 
 
 ***
