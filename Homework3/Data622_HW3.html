@@ -1417,9 +1417,16 @@ background-color: #f5f5f5;
 }
 .lightable-classic {
 border-top: 0.16em solid #111111;
+border-bottom: 0.16em solid #111111;
 width: 100%;
 margin-bottom: 10px;
 margin: 10px 5px;
+}
+.lightable-classic tfoot tr td {
+border: 0;
+}
+.lightable-classic tfoot tr:first-child td {
+border-top: 0.14em solid #111111;
 }
 .lightable-classic caption {
 color: #222222;
@@ -1438,9 +1445,6 @@ color: #222222;
 .lightable-classic thead tr:last-child th {
 border-bottom: 0.10em solid #111111;
 }
-.lightable-classic tbody tr:last-child td {
-border-bottom: 0.14em solid #111111;
-}
 .lightable-classic.lightable-hover tbody tr:hover {
 background-color: #F9EEC1;
 }
@@ -1449,8 +1453,15 @@ background-color: #f5f5f5;
 }
 .lightable-classic-2 {
 border-top: 3px double #111111;
+border-bottom: 3px double #111111;
 width: 100%;
 margin-bottom: 10px;
+}
+.lightable-classic-2 tfoot tr td {
+border: 0;
+}
+.lightable-classic-2 tfoot tr:first-child td {
+border-top: 3px double #111111;
 }
 .lightable-classic-2 caption {
 color: #222222;
@@ -1487,6 +1498,12 @@ border: 1px solid #EEE;
 border-collapse: collapse;
 margin-bottom: 10px;
 }
+.lightable-material tfoot tr td {
+border: 0;
+}
+.lightable-material tfoot tr:first-child td {
+border-top: 1px solid #EEE;
+}
 .lightable-material th {
 height: 56px;
 padding-left: 16px;
@@ -1520,6 +1537,12 @@ border-collapse: collapse;
 margin-bottom: 10px;
 background-color: #363640;
 }
+.lightable-material-dark tfoot tr td {
+border: 0;
+}
+.lightable-material-dark tfoot tr:first-child td {
+border-top: 1px solid #FFFFFF12;
+}
 .lightable-material-dark th {
 height: 56px;
 padding-left: 16px;
@@ -1549,6 +1572,12 @@ border-bottom: 1px solid #FFFFFF12;
 width: 100%;
 margin-bottom: 10px;
 color: #444;
+}
+.lightable-paper tfoot tr td {
+border: 0;
+}
+.lightable-paper tfoot tr:first-child td {
+border-top: 1px solid #00000020;
 }
 .lightable-paper thead tr:last-child th {
 color: #666;
@@ -1715,7 +1744,25 @@ h6 {
 }
 </style>
 
-<style type="text/css">body {counter-reset: li; }h1 {font-family:Avenir, Arial, Helvetica, sans-serif;font-weight:bold;}h2 {font-family:Avenir, Arial, Helvetica, sans-serif;font-weight:bold;margin-top: 24px;counter-reset: section;}hr {border: 1px solid #357FAA;}pre {display:block; margin-left: 30px; }</style>
+<style type="text/css">body {
+counter-reset: li; 
+}
+h1 {
+font-family:Avenir, Arial, Helvetica, sans-serif;
+font-weight:bold;
+}
+h2 {
+font-family:Avenir, Arial, Helvetica, sans-serif;
+font-weight:bold;
+margin-top: 24px;
+counter-reset: section;
+}
+hr {
+border: 1px solid #357FAA;
+}
+pre {
+display:block; margin-left: 30px; }
+</style>
 
 
 
@@ -4136,8 +4183,8 @@ Credit_History
 ## 3 0.01176471      8 0.5647059 0.9294118 0.08781286
 ## 4 0.01000000     10 0.5411765 0.9058824 0.08715167</code></pre>
 </div>
-<div id="tuning" class="section level3">
-<h3>Tuning</h3>
+<div id="tuning-our-decision-tree" class="section level3">
+<h3>Tuning our Decision Tree</h3>
 <p>Although this is the case, when using this cp value in our <code>prune()</code> function, we still obtain accuracy ratings of around 68%. In order to test different complexity parameters, we also decided to use our cp value of 0.01647059, which is a tree size of 2. When we use this tree size, and prune our initial tree accordingly, we can see the resulting decision tree below:</p>
 <div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1"></a>tree1.pruned &lt;-<span class="st"> </span><span class="kw">prune</span>(tree1, <span class="dt">cp=</span><span class="fl">0.01647059</span>)</span>
 <span id="cb53-2"><a href="#cb53-2"></a></span>
@@ -4308,7 +4355,7 @@ Credit_History
 ##    N   Y class.error
 ## N 37  48  0.56470588
 ## Y 12 171  0.06557377</code></pre>
-<p>The results of the Random Forest model on our training set yielded an out of bag error rate of 22.39%, which is lower than the original model’s OOB error of 23.88%. However, it is still a good result it has gotten worse with the tuning.</p>
+<p>The results of the Random Forest model on our training set yielded an out of bag error rate of 22.39%, which is lower than the original model’s OOB error of 23.88%. Therefore, we can see that tuning our model did help to reduce the OOB error slightly.</p>
 <div class="sourceCode" id="cb67"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1"></a>forest.pred2 &lt;-<span class="st"> </span><span class="kw">predict</span>(fit.forest2, </span>
 <span id="cb67-2"><a href="#cb67-2"></a>                        <span class="dt">newdata =</span> test_loan)</span>
 <span id="cb67-3"><a href="#cb67-3"></a></span>
@@ -4340,8 +4387,8 @@ Credit_History
 ##                                           
 ##        &#39;Positive&#39; Class : N               
 ## </code></pre>
-<p>When we subject our second Random Forest Model to make predictions on our test set, we notice that there is the same accuracy as our previous model for the training sample, which is roughly 82.11%. The tuned model has performed worse than the test data set than the original Random Forest. The accuracy is slightly decreased, and the 95 % CI has decreased a bit too.</p>
-<p>Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the OOB error rate is decreasing with 1-20 trees, and rate stabilizes that at around 20 trees.</p>
+<p>When we subject our second Random Forest Model to make predictions on our test set, we notice that there is slightly higher accuracy than our previous model, which is roughly 84.1%. The tuned model has performed better than the test data set than the original Random Forest. The accuracy is slightly increased, and the 95 % CI has increase a bit too.</p>
+<p>Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the OOB error rate is decreasing with 1-20 trees, increasing a little bit with 20-50 trees, and rate stabilizes that at around 100 trees.</p>
 <div class="sourceCode" id="cb69"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1"></a><span class="kw">plot</span>(fit.forest2, </span>
 <span id="cb69-2"><a href="#cb69-2"></a>     <span class="dt">col =</span> <span class="kw">c</span>(<span class="st">&quot;black&quot;</span>, <span class="st">&quot;red&quot;</span>, <span class="st">&quot;dark green&quot;</span>), </span>
 <span id="cb69-3"><a href="#cb69-3"></a>     <span class="dt">main =</span> <span class="st">&quot;Predicted Loan Error Rates&quot;</span>)</span>
@@ -4393,7 +4440,7 @@ Credit_History
 <p>The best cross-validation iteration was 34 and the RMSE is 0.3913894</p>
 <p>The summary of output creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.From the table, we can see <code>LoanAmount</code>, <code>LogIncome</code> and <code>Credit_History</code> are the top three most important variable for our model.</p>
 </div>
-<div id="tuning-1" class="section level3">
+<div id="tuning" class="section level3">
 <h3>Tuning</h3>
 <p>We could tune parameters to see how the results change. Here, I increase the number of trees and also perform a 5 fold cross validation.</p>
 <div class="sourceCode" id="cb77"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1"></a><span class="kw">set.seed</span>(<span class="dv">123</span>)</span>
@@ -4488,26 +4535,14 @@ Credit_History
 <div id="part-5-model-performance" class="section level2">
 <h2><strong>Part 5: Model Performance</strong></h2>
 <hr />
-<p><strong>Model performance: please compare the models you settled on for problem # 2 – 4.Comment on their relative performance. Which one would you prefer the most? Why?(20 points)</strong></p>
-<div class="sourceCode" id="cb89"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1"></a>temp &lt;-<span class="st"> </span><span class="kw">data.frame</span>(dtree.cm_train<span class="op">$</span>overall, </span>
-<span id="cb89-2"><a href="#cb89-2"></a>                   forest.cm_train<span class="op">$</span>overall,</span>
-<span id="cb89-3"><a href="#cb89-3"></a>                   boost.cm<span class="op">$</span>overall) <span class="op">%&gt;%</span></span>
-<span id="cb89-4"><a href="#cb89-4"></a><span class="st">  </span><span class="kw">t</span>() <span class="op">%&gt;%</span></span>
-<span id="cb89-5"><a href="#cb89-5"></a><span class="st">  </span><span class="kw">data.frame</span>() <span class="op">%&gt;%</span></span>
-<span id="cb89-6"><a href="#cb89-6"></a><span class="st">  </span>dplyr<span class="op">::</span><span class="kw">select</span>(Accuracy) <span class="op">%&gt;%</span></span>
-<span id="cb89-7"><a href="#cb89-7"></a><span class="st">  </span><span class="kw">mutate</span>(<span class="st">`</span><span class="dt">Classification Error Rate</span><span class="st">`</span> =<span class="st"> </span><span class="dv">1</span><span class="op">-</span>Accuracy)</span></code></pre></div>
-<div class="sourceCode" id="cb90"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1"></a>eval &lt;-<span class="st"> </span><span class="kw">data.frame</span>(dtree.cm_train<span class="op">$</span>byClass, </span>
-<span id="cb90-2"><a href="#cb90-2"></a>                   forest.cm_train<span class="op">$</span>byClass,</span>
-<span id="cb90-3"><a href="#cb90-3"></a>                   boost.cm<span class="op">$</span>byClass)</span>
-<span id="cb90-4"><a href="#cb90-4"></a>eval &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="kw">t</span>(eval)) <span class="op">%&gt;%</span></span>
-<span id="cb90-5"><a href="#cb90-5"></a><span class="st">  </span><span class="kw">cbind</span>(temp) <span class="op">%&gt;%</span></span>
-<span id="cb90-6"><a href="#cb90-6"></a><span class="st">  </span><span class="kw">mutate</span>(<span class="dt">eval =</span> <span class="kw">c</span>(<span class="st">&quot;Decision Tree&quot;</span>, <span class="st">&quot;Random Forest&quot;</span>, <span class="st">&quot;Gradient Boosting&quot;</span>)) </span></code></pre></div>
-<div class="sourceCode" id="cb91"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1"></a>eval &lt;-<span class="st"> </span>dplyr<span class="op">::</span><span class="kw">select</span>(eval, Accuracy, <span class="st">`</span><span class="dt">Classification Error Rate</span><span class="st">`</span>, Sensitivity, Specificity, Precision, Recall, F1)</span>
-<span id="cb91-2"><a href="#cb91-2"></a><span class="kw">rownames</span>(eval) =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Decision Tree&quot;</span>,  <span class="st">&quot;Random Forest&quot;</span>, <span class="st">&quot;Gradient Boosting&quot;</span>)</span>
-<span id="cb91-3"><a href="#cb91-3"></a>t_eval &lt;-<span class="st"> </span><span class="kw">t</span>(eval)</span>
-<span id="cb91-4"><a href="#cb91-4"></a><span class="kw">colnames</span>(t_eval) &lt;-<span class="st"> </span><span class="kw">rownames</span>(eval)</span>
-<span id="cb91-5"><a href="#cb91-5"></a><span class="kw">rownames</span>(t_eval) &lt;-<span class="st"> </span><span class="kw">colnames</span>(eval)</span>
-<span id="cb91-6"><a href="#cb91-6"></a>knitr<span class="op">::</span><span class="kw">kable</span>(t_eval)</span></code></pre></div>
+<p><strong>Model performance: please compare the models you settled on for problem # 2 – 4. Comment on their relative performance. Which one would you prefer the most? Why?(20 points)</strong></p>
+<p>After running various decision trees, random forest models, and gradient boosting methods, we can take a look at the overall evaluation metrics for these three techniques on the loan approval dataset. By creating a dataframe to store all of our metrics, we can visualize the outcomes below:</p>
+<div class="sourceCode" id="cb89"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1"></a>eval &lt;-<span class="st"> </span>dplyr<span class="op">::</span><span class="kw">select</span>(eval, Accuracy, <span class="st">`</span><span class="dt">Classification Error Rate</span><span class="st">`</span>, Sensitivity, Specificity, Precision, Recall, F1)</span>
+<span id="cb89-2"><a href="#cb89-2"></a><span class="kw">rownames</span>(eval) =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;Decision Tree&quot;</span>,  <span class="st">&quot;Random Forest&quot;</span>, <span class="st">&quot;Gradient Boosting&quot;</span>)</span>
+<span id="cb89-3"><a href="#cb89-3"></a>t_eval &lt;-<span class="st"> </span><span class="kw">t</span>(eval)</span>
+<span id="cb89-4"><a href="#cb89-4"></a><span class="kw">colnames</span>(t_eval) &lt;-<span class="st"> </span><span class="kw">rownames</span>(eval)</span>
+<span id="cb89-5"><a href="#cb89-5"></a><span class="kw">rownames</span>(t_eval) &lt;-<span class="st"> </span><span class="kw">colnames</span>(eval)</span>
+<span id="cb89-6"><a href="#cb89-6"></a>knitr<span class="op">::</span><span class="kw">kable</span>(t_eval)</span></code></pre></div>
 <table>
 <thead>
 <tr>
@@ -4625,6 +4660,8 @@ F1
 </tr>
 </tbody>
 </table>
+<p>When comparing our three different techniques to one another, we can see that overall, our decision tree method seemed to perform the worst. With lower overall accuracy, higher classification error rate, and worse performance on measures such as F1, sensitivity and specificity, we can determine that we’d likely not prefer the decision tree approach. Additionally, the decision tree we are using here to evaluate against our other techniques only utlizes one feature (<code>Credit_History</code>), and such isn’t as flexible if we were to utilize this model on a different dataset.</p>
+<p>When looking at the overall performance of our Random Forest model and Gradient Boosting approach on our holdout test set, we can see…</p>
 </div>
 
 
