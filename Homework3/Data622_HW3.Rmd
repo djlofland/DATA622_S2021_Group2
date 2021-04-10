@@ -51,6 +51,7 @@ require(mice)
 require(gbm)
 require(xgboost)
 library(skimr)
+library(forecast)
 ```
 
 
@@ -318,14 +319,14 @@ As we can see from a glimpse of the data set above, the following features are a
 + **Married**: indicates whether the applicant is either married ("Yes") or not married ("No")  
 + **Dependents**: records the number of dependents to the applicant  
 + **Education**: indicates whether the applicant is a graduate or undergraduate student  
-+ **Self_Employed**: indicates whether the applicant is either self employed ("Yes) or not ("No")  
++ **Self_Employed**: indicates whether the applicant is either self-employed ("Yes) or not ("No")  
 + **ApplicantIncome**: indicates the applicant's income  
-+ **CoapplicantIncome**: indicates the coapplicant's income  
++ **CoapplicantIncome**: indicates the co-applicant income  
 + **LoanAmount**: indicates the loan amount (in thousands)  
-+ **Loan_Amount_Term**: indicates the loan amount term in number of months  
++ **Loan_Amount_Term**: indicates the loan amount term in the number of months  
 + **Credit_History**: indicates whether or not the applicant's credit history meets loan guidelines (1 or 0)  
-+ **Property_Area**: indicates whether the applicant's property is "urban", "semi urban" or "rural"  
-+ **Loan_Status**: the target variable, indicates whether or not the applicant received the loan   
++ **Property_Area**: indicates whether the applicant's property is "urban", "semi-urban" or "rural"  
++ **Loan_Status**: the target variable indicates whether or not the applicant received the loan   
 
 ***
 
@@ -334,18 +335,21 @@ As we can see from a glimpse of the data set above, the following features are a
 Now, we can run some exploratory data analysis to get a better sense of how to tidy and interpret these features. Here's an initial summary of the dataset:  
 
 ```{r}
+# print dataframe summary
 skim(loan)
 ```
 
 #### Handle Missing Data
 
-We can see that there are a fair amount of things we'll need to do to clean the dataset before being able to run our decision tree algorithm. First, we can see that there quite a few missing values (NAs) in our `LoanAmount`, `Loan_Amount_Term` and `Credit_History` features. Also, we noticed that there were a lot of blank values, which needed to be recoded to NAs. Therefore, we used the `naniar` package below to handle this:  
+There are several cleanup steps we will need to perform before we can start modeling with decision trees.  We noticed a lot of blank values, which we will need to change to NAs. By coding these to NA, we can then impute them when cleaning up the other NAs. We used the `naniar` package to help with cleaning up blanks and NAs.      
 
 ```{r}
+# replace blank values with NA
 loan <- loan %>% 
   replace_with_na_all(condition = ~. == "")
 ```
 
+Next, we explore missing values to understand any patterns.  This will help us determine the best way to handle missing values. Options might include dropping records with missing data or imputing missing data. 
 
 ```{r}
 loan %>%
@@ -358,38 +362,40 @@ loan %>%
   labs(title = 'Count of missing values in penguins dataset') +
   theme(plot.title = element_text(hjust = 0.5))
 ```
+
 ```{r}
 gg_miss_upset(loan)
 ```
 
-This can be further visualized by the "Missingness Map" below:  
+This can be further visualized by the "Missingness Map".  
 
 ```{r, message=FALSE, warning=FALSE}
 missmap(loan)
 ```
 
+We can see a number of missing values (NAs) in our `LoanAmount`, `Loan_Amount_Term`, and `Credit_History` features.  We will replace these in a later step.
+
 #### Fix Datatypes
 
-Before progressing, we thought it would be helpful to conduct some transformations on this data, as well as account for NAs. To do this, we used the `factor` function on each feature:  
+Before progressing, we need to convert categorical features into factors.  The factor data type is far more memory efficient and provides information about the unique values, or levels, within the feature.  Most libraries will detect the factor data type and understand that the feature is a categorical type.
 
 ```{r}
-loan$Loan_Status <- factor(loan$Loan_Status)
-
+# convert categorical features to factor
 loan <- loan %>%
-           mutate(Gender = factor(Gender),
-                  Married = factor(Married),
-                  Dependents = factor(Dependents),
-                  Education = factor(Education),
-                  Self_Employed = factor(Self_Employed),
-                  Property_Area = factor(Property_Area),
-                  Loan_Status = factor(Loan_Status))
+           mutate(Gender = as.factor(Gender),
+                  Married = as.factor(Married),
+                  Dependents = as.factor(Dependents),
+                  Education = as.factor(Education),
+                  Self_Employed = as.factor(Self_Employed),
+                  Property_Area = as.factor(Property_Area),
+                  Loan_Status = as.factor(Loan_Status))
 
 summary(loan)
 ```
 
 ### Feature Plots
 
-Next, we'll want to take a look at the distributions of the continuous features, which appear to be `ApplicantIncome`, `CoapplicantIncome`, `LoanAmount`, and `Loan_Amount_Term`.  We color coded `Loan_status` where blue is `Y` and red is `N` to help visualize patterns between the distributions and our feature distribution:  
+Next, we explore the distributions of our continuous features: `ApplicantIncome`, `CoapplicantIncome`, `LoanAmount`, and `Loan_Amount_Term`.  We color-coded `Loan_status` so `Y` (blue) and `N` (red) to help visualize patterns between the distributions and our feature distribution.   
 
 ```{r echo=FALSE, fig.height=8, fig.width=8, message=FALSE, warning=FALSE}
 loan %>%
@@ -397,11 +403,11 @@ loan %>%
   ggpairs(aes(color = Loan_Status, alpha = 0.9))
 ```
 
-We can see that `ApplicantIncome`, `CoapplicantIncome` and `LoanAmount` are highly right skewed, with long right tails. Conversely, it looks like `Loan_Amount_Term` is highly left skewed, with a long left tail.  
+We can see that `ApplicantIncome`, `CoapplicantIncome` and `LoanAmount` are highly right-skewed, with long right tails. Conversely, it looks like `Loan_Amount_Term` is highly left-skewed, with a long left tail.  
 
 ### Target Plots
 
-Additionally, we can also take a look at the categorical variables, broken out by our target variable of whether or not a loan was issued to the applicant. From the green bars below, we can see the total amount of loan approvals, relative to the red bars below documenting the loan denials. 
+Additionally, we can also look at the categorical variables, broken out by our target variable of whether a loan was issued to the applicant. From the green bars below, we can see the total amount of loan approvals relative to the red bars below documenting the loan denials. 
 
 ```{r, echo=FALSE}
 par(mfrow=c(2,3))
@@ -431,32 +437,32 @@ barplot(tbl6, main="Loan Status by Credit_History",
         xlab="Credit_History", col=c("darksalmon","darkolivegreen3"))
 ```
 
-From the categorical variable splits based on loan approval status, we can see a few interesting things:  
+Based on the categorical variables split on loan approval status, we can see a few interesting things:  
 
 + The number of loans applied for by males was significantly higher than loans applied for by females in this dataset. 
 
-+ The same phenomenon is true for graduate students, where a much higher number of loan applications were coming from graduate students relative to undergraduate students.  
++ The same phenomenon is true for graduate students, where more loan applications came from graduate students than undergraduate students.  
 
-+ Whether or not the applicant was self employed or married also showed a pretty large class imbalance, where those that identified as not self employed and those that identified as married had higher proportions of applicants in this dataset than those that did not identify by those two characteristics.  
++ We see a large class imbalance with the `Self_Employed` and `Married` features.  In both cases, there are more applicants who are not self-employed and who are married.  
 
-+ There was a pretty even split in the number of applicants based on property area, where someone identifying that they live in *rural*, *semiurban*, or *urban* settings were pretty evenly distributed.  
++ There was a pretty even split in the number of applicants based on `Property_Area`, where someone identifying that they live in *rural*, *semiurban*, or *urban* settings were pretty evenly distributed.    
 
-+ We can see that applicants that did not pass the credit history criteria were almost always likely to be denied a loan.  
++ We can see that applicants who did not pass the credit history criteria were almost always denied a loan.   
 
-These factors will be interesting to examine and discuss as we look to build our decision tree model and random forest models, since these class imbalances could affect model performance and interpretation.  
+These factors will be interesting to examine and discuss as we build our decision tree model and random forest models.  These class imbalances could affect model performance and interpretation.  
 
 ***
 
 ### Impute missing
 
-Since there were a large amount of missing values that we identified above, we can use KNN() to help with our imputations. With the KNN method, a categorical missing value is imputed with the majority among its k nearest neighbors, and the average value (mean) of the k nearest neighbors is regarded as the prediction for a numerical missing value.
+We can use kNN imputation to help replace many of the missing values we identified above.  With the KNN method, a categorical missing value is imputed by looking at other records with similar features.  Once `k` similar records are found, they are used to infer the missing value.  For missing numeric values, the `k` most similar records values are averaged (mean) to “predict” the missing value.  Note this is only one way to handle numeric missing values.  We could also do *median imputation* or *mean imputation*.  It comes down to the nature of the data as to which technique makes the most sense.
 
 ```{r}
 loan <- kNN(loan) %>%
   subset(select = Loan_ID:Loan_Status)
 ```
 
-Now, we can double check that this worked correctly by running syntax to find any missing values:
+Nexrt, we double check that this worked correctly by checking for missing values.
 
 ```{r, warning=FALSE, message=FALSE}
 sapply(loan, function(x) sum(is.na(x)))
@@ -466,16 +472,30 @@ Fortunately, we can see that there are now no missing data points!
 
 ### Apply Transformations
 
-Next, we'll have to work through a few transformations for our highly skewed continuous data. For our `LoanAmount` feature, we can conduct a log transformation:  
+Next, we'll have to work through a few transformations for our highly skewed continuous data. We use BoxCox to identify the optimal $\lambda$ which informs the ideal transformation to try.  
 
 ```{r}
-loan$LogLoanAmount <- log(loan$LoanAmount)
-loan$LogLoan_Amount_Term <- log(loan$Loan_Amount_Term)
+# calculate optimal lambda for BoxCox
+BoxCox.lambda(loan$LoanAmount)
+BoxCox.lambda(loan$Loan_Amount_Term)
 ```
 
-```{r, echo=FALSE}
-par(mfrow=c(1,2))
+For `LoanAmount`, $\lambda=-0.184$ and for `Loan_Amount_Term`, $\lambda=1.99$.  We round $\lambda$ to the neared integer.  So, for `LoanAmount`, $\lambda=0$ which tells us to do a log() transformation.  However, for `Loan_Amount_Term`, $\lambda=2$, which tells us to do a $Y^2$ transformation.
 
+```{r}
+# apply a log transform
+loan$LoanAmount_Xform <- log(loan$LoanAmount)
+
+# apply a square transformation
+loan$Loan_Amount_Term_Xform <- loan$Loan_Amount_Term^2
+```
+
+
+```{r, echo=FALSE}
+# Setup a facet chart with 2x2
+par(mfrow=c(2,2))
+
+# plot histograms for each feature next to it's transformed version
 hist(loan$LoanAmount, 
      main="Histogram for Loan Amount", 
      xlab="Loan Amount", 
@@ -484,8 +504,24 @@ hist(loan$LoanAmount,
      las=1, 
      breaks=20, prob = TRUE)
 
-hist(loan$LogLoanAmount, 
+hist(loan$LoanAmount_Xform, 
      main="Histogram for Log Loan Amount", 
+     xlab="Loan Amount (transformed)", 
+     border="black", 
+     col="gray",
+     las=1, 
+     breaks=20, prob = TRUE)
+
+hist(loan$Loan_Amount_Term, 
+     main="Histogram for Loan Term Amount", 
+     xlab="Loan Amount", 
+     border="black", 
+     col="gray",
+     las=1, 
+     breaks=20, prob = TRUE)
+
+hist(loan$Loan_Amount_Term_Xform, 
+     main="Histogram for Squared Loan Term Amount", 
      xlab="Loan Amount (transformed)", 
      border="black", 
      col="gray",
@@ -493,28 +529,53 @@ hist(loan$LogLoanAmount,
      breaks=20, prob = TRUE)
 ```
 
-Banks generally don't want loan payments to exceed 25% of an applicants income.  Most banks will add the co-applicant income to the applicant income and treat the sum in their decision criteria.  For this reason, we combine `ApplicantIncome` and `CoapplicantIncome` into a single `Income` feature and drop the separate `ApplicantIncome` and `CoapplicantIncome`.  Next we perform a log transformation on `Income` to obtain the best results.  
+Banks generally don't want loan payments to exceed 25% of an applicant's income.  Most banks will add the co-applicant income to the applicant's income and treat the sum in their decision criteria.  For this reason, we combine `ApplicantIncome` and `CoapplicantIncome` into a single `Income` feature and drop the separate `ApplicantIncome` and `CoapplicantIncome`.  
 
 ```{r}
+# combine applicant and co-applicant incomes and drop the original separate features
 loan$Income <- loan$ApplicantIncome + loan$CoapplicantIncome
 loan$ApplicantIncome <- NULL
 loan$CoapplicantIncome <- NULL
-loan$LogIncome <- log(loan$Income)
+```
+
+As above, `Income` is skewed, so we will want to transform it.  Let's calcualte BoxCOx lambda to inform how to transform.
+
+```{r}
+# find the optimal lBoxCox lambda for Income
+BoxCox.lambda(loan$Income)
+```
+
+For `Income`, $\lambda=-0.5$ which tells us to try a $\frac{1}{\sqrt(Y)}$ transform.
+
+```{r}
+# transform Income
+loan$Income_Xform <- sqrt(loan$Income) ^ (-1)
 ```
 
 When checking the new distribution of our `Income` variable, we can see that it is much more normally distributed:  
 
 ```{r, echo=FALSE}
-hist(loan$LogIncome, 
-     main="Histogram for Applicant Income", 
-     xlab="Income", 
+par(mfrow=c(1,2))
+
+# plot transformed income
+hist(loan$Income, 
+     main="Histogram for Combined Income", 
+     xlab="Combined Income", 
+     border="black", 
+     col="gray",
+     las=1, 
+     breaks=50, prob = TRUE)
+
+hist(loan$Income_Xform, 
+     main="Histogram for Combined Income (transformed)", 
+     xlab="Combined Income", 
      border="black", 
      col="gray",
      las=1, 
      breaks=50, prob = TRUE)
 ```
 
-With the exploratory data analysis behind us, and our data tidy'd, we are now ready to run our decision tree!  
+With the exploratory data analysis behind us, and our data cleaned up, we are now ready to run our decision tree!  
 
 ### Splitting our data into a Training/Test set
 
@@ -523,10 +584,10 @@ Similar to our KNN model process above, we'll determine an 80/20 split for our t
 ```{r}
 set.seed(123)
 
-trainingRows <- createDataPartition(as.matrix(species_actual$species), p=0.8, list=FALSE)
+trainingRows <- createDataPartition(as.matrix(loan$Loan_Status), p=0.8, list=FALSE)
 
-train_loan<-loan[trainingRows,]
-test_loan<-loan[-trainingRows,]
+train_loan <- loan[trainingRows,]
+test_loan <- loan[-trainingRows,]
 ```
 
 ### Initial Model
@@ -535,7 +596,7 @@ With the data split, we can now run our first decision tree:
 
 ```{r}
 tree1 <- rpart(Loan_Status ~ Gender + Married + Dependents + Education + 
-                 Self_Employed + LogIncome + LogLoanAmount + Loan_Amount_Term + 
+                 Self_Employed + Income_Xform + LoanAmount_Xform + Loan_Amount_Term_Xform + 
                  Credit_History + Property_Area, 
                data=train_loan)
 
@@ -556,32 +617,35 @@ loanPre <- predict(tree1,
 confusionMatrix(loanPre, test_loan$Loan_Status)
 ```
 
-As we can see from our predictions and the confusion matrix, we were able to obtain about 68% accuracy using this decision tree. To achieve higher accuracy, we'll use the `prune()` function in the `rpart` package to examine a predicted optimal tree size. 
+As we can see from our predictions and the confusion matrix, we were able to obtain about 82% accuracy using this decision tree. To achieve higher accuracy, we'll use the `prune()` function in the `rpart` package to examine a predicted optimal tree size. 
 
 ```{r}
 plotcp(tree1)
 ```
+
 By plotting the cross-validated error against the complexity parameter, we can see that the relationship between the yields the best optimal outcome for our tree at a tree size of 2. 
 
 ```{r}
 tree1$cptable
 ```
 
+We want to minimize `xerror`, which in row 2 (a tree with size 2), we see $xerror=0.6233$
+
 ### Tuning our Decision Tree
 
-Although this is the case, when using this cp value in our `prune()` function, we still obtain accuracy ratings of around 68%. In order to test different complexity parameters, we also decided to use our cp value of 0.01647059, which is a tree size of 2. When we use this tree size, and prune our initial tree accordingly, we can see the resulting decision tree below:  
+Although this is the case, when using this `cp` value in our `prune()` function, we still obtain accuracy ratings of around 82%. To test different complexity parameters, we used a `cp` value of 0.03246753, which is a tree size of 2. When we use this tree size, and prune our initial tree accordingly, we can see the resulting decision tree.  
 
 ```{r}
-tree1.pruned <- prune(tree1, cp=0.01647059)
+tree1.pruned <- prune(tree1, cp=0.03246753)
 
 rpart.plot(tree1.pruned, 
            extra = 104, 
            main = "Decision Tree")
 ```
 
-Interestingly, from this pruning process, the `Credit_History` feature alone seems to do a fairly good job of classifying applicants into the approval vs. disapproval status. The accuracy is about 86% on our test set, which is slightly higher than our initial tree.  
+Interestingly, from this pruning process, the `Credit_History` feature alone seems to do a reasonably good job of classifying applicants into the approval vs. disapproval status. The accuracy is about 86% on our test set, which is similar to our initial tree.  
 
-However, it's important to think critically about whether or not this pruned tree would perform better on another dataset, and if it is applicable for real-life events. 
+However, it's important to think critically about whether this pruned tree would perform better on another dataset and is applicable for real-life events. 
 
 ```{r}
 tree1.pruned.pred <- predict(tree1.pruned, 
@@ -591,7 +655,7 @@ tree1.pruned.pred <- predict(tree1.pruned,
 confusionMatrix(tree1.pruned.pred, test_loan$Loan_Status)
 ```
 
-While a single feature does offer fairly good accuracy, there may be mitigating information from other features that would affect a loan decision which is lost if we only include a single feature.  While decision trees are simple to construct and understand, their weakness is that they follow a simple linear path for decision making.  This linear flow doesn't allow for downstream features to alter or influence potential predictions.
+While a single feature offers reasonably good accuracy, there may be mitigating information from other features that would be lost and affect a loan decision if we only include the first feature.  While decision trees are simple to construct and understand, their weakness is that they follow a simple linear path for decision making.  This linear flow doesn't allow for downstream features to alter or influence potential predictions.
 
 ***
 
@@ -610,8 +674,8 @@ In order to run a random forest model, we'll use the `randomForest()` function i
 ```{r}
 set.seed(123)
 fit.forest <- randomForest(Loan_Status ~ Gender + Married + Dependents + 
-                             Education + Self_Employed + LogIncome + 
-                             LogLoanAmount + Loan_Amount_Term + 
+                             Education + Self_Employed + Income_Xform + 
+                             LoanAmount_Xform + Loan_Amount_Term_Xform + 
                              Credit_History + Property_Area,
                            data=train_loan)
 
@@ -662,8 +726,8 @@ set.seed(123)
 val_opt <- tree_var [,"mtry"][which.min(tree_var [,"OOBError"])]
 
 fit.forest2 <- randomForest(Loan_Status  ~ Gender + Married + Dependents + 
-                              Education + Self_Employed + LogIncome + 
-                              LogLoanAmount + Loan_Amount_Term + 
+                              Education + Self_Employed + Income_Xform + 
+                              LoanAmount_Xform + Loan_Amount_Term_Xform + 
                               Credit_History + Property_Area,
                             data=train_loan, 
                             importance = TRUE, 
