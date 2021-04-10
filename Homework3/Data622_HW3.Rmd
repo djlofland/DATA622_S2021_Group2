@@ -60,13 +60,13 @@ library(skimr)
 
 ***
 
-**Please use K-nearest neighbor (KNN) algorithm to predict the species variable. Please be sure to walk through the steps you took. (40 points)**
+**Please use the K-nearest neighbor (KNN) algorithm to predict the species variable. Please be sure to walk through the steps you took. (40 points)**
 
 Similar to past assignments when using the Palmer Penguins dataset, we'll first do some quick exploratory analysis to examine the different features available.  
 
 ### Load Data
 
-We can see below, that there are four continuous variables: `bill_length_mm`, `bill_depth_mm`, `flipper_length_mm` and `body_mass_g`. Additionally, there are a few categorical variables: `island`, `sex`, and `year`.  
+We can see below that there are four continuous variables: `bill_length_mm`, `bill_depth_mm`, `flipper_length_mm`, and `body_mass_g`. Additionally, there are a few categorical variables: `island`, `sex`, and `year`.  
 
 ```{r, echo=FALSE}
 # Load data
@@ -79,7 +79,7 @@ kable(head(penguins)) %>%
 
 ### Feature Plots
 
-For the continuous variables, we can examine the distributions, broken out by the target variable, `species`:  
+For the continuous variables, we can examine the distributions, broken out by the target variable, `species`.  
 
 ```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, echo=FALSE}
 # Generate feature pair plots
@@ -88,9 +88,9 @@ penguins %>%
   ggpairs(aes(color = species, alpha = 0.9))
 ```
 
-By separating our distributions by our target variable, `species`, we can see that many of the feature interactions show clustering between Adelie and Chinstrap penguins (red and green), while Gentoo penguins tend to contrast the other two species for most interactions. This is also confirmed by most of the single-variable distributions split out by species in the plots below. With the exception of the distribution of `bill_length_mm`, distributions for `body_mass_g`, `bill_depth_mm`, and `flipper_length_mm` all show there to be overlapping distributions between Adelie and Chinstrap penguin species.  
+By separating our distributions by our target variable, `species`, we can see that many feature interactions show clustering between Adelie and Chinstrap penguins (red and green), while Gentoo penguins tend to contrast the other two species for most interactions. This is also confirmed by most of the single-variable distributions split out by species in the plots below. Except for the distribution of `bill_length_mm`, distributions for `body_mass_g`, `bill_depth_mm`, and `flipper_length_mm` all show there to be overlapping distributions between Adelie and Chinstrap penguin species.  
 
-Next, we'll do some data tidying to get our data set ready for our KNN model. `year` reflects the date/time of recording and requires some additional thought.  If we hypothesize or expect that variability in penguin features could have a time dependent effect, then `year` could be important.  For example, if penguin food supplies vary year by year and this impacts growth or if yearly temperature affects penguin development, then `year` could matter.  If we thought global warming might be impacting penguins physical development or other natural disasters might have impacted grown on specific years, then again, `year` might matter.  That said, in this situation, *because we don't have any reason to expect a time dependent effect*, `year` probably doesn't add any explanatory power to our models and we can remove it from our data set:  
+Next, we'll do some data tidying to get our data set ready for our KNN model. `year` reflects the date/time of recording and requires some additional thought.  If we hypothesize or expect that variability in penguin features could have a time-dependent effect, then `year` could be important.  For example, if penguin food supplies vary year by year and this impacts growth or yearly temperature affects penguin development, `year` could matter.  If we thought global warming might impact penguins’ physical development or other natural disasters might have impacted growth in specific years, `year` might matter.  That said, in this situation, *because we don't have any reason to expect a time-dependent effect*, `year` probably doesn't add any explanatory power to our models, and we can remove it from our data set.  
 
 ```{r}
 # remove year column
@@ -100,7 +100,7 @@ penguins <- penguins %>%
 
 ### Missing Values
 
-Additionally, when looking at the number of missing values, we can see the following:  
+Additionally, when exploring missing values, we can see the following:  
 
 ```{r warning=FALSE}
 # Plot missing values per feature
@@ -120,21 +120,21 @@ penguins %>%
 gg_miss_upset(penguins)
 ```
 
-We can see that 11 individuals have at least one missing data point. The missing data points are clustered - two penguin records are missing `bill_length_mm`, `bill_depth_mm`, `flipper_length_mm`, `body_mass_g`, and `sex`.  None other penguin records missing just the `sex` data point.  We cannot do much with the 2 records missing most of their data, so those will be dropped.  For the records missing just `sex`, while we could try to KNN impute, we don't know enough about gender differences to know if that's a safe operation or whether it would introduce additional variability.  Therefore, we'll drop these from our data set as well.  
+We can see that 11 individuals have at least one missing data point. The missing data points are clustered - two penguin records are missing `bill_length_mm`, `bill_depth_mm`, `flipper_length_mm`, `body_mass_g`, and `sex`.  Nine penguin records are missing just the `sex` data point.  Since we cannot do much with the two records missing most of their data, we will drop these records.  For the records missing just `sex`, while we could try kNN imputation, we don't know enough about gender differences to know if that's a safe operation or whether it would introduce bias.  Therefore, we'll drop these from our data set as well.  
 
 ```{r}
 # Remove rows with missing values
 penguins <- na.omit(penguins)
 ```
 
-Now, we can take a look at a summary of data before splitting to get a sense of what still needs to be tidy'd in order to get it ready for our KNN model:  
+Looking at our dataset, we see that missing values are no longer an issue; however, we still have some additional cleanup to perform on our dataset below before we proceed with kNN modeling.   
 
 ```{r}
 # Display data from summary
 skim(penguins)
 ```
 
-From above, we can see that we'll need to remove our `species` variable, and save it to a separate outcome variable in order to evaluate the performance of our KNN model later on. We can do this by running the following syntax:  
+When setting up for modeling, we typically separate our features from our target to have an `x` and `y`.  With this in mind, we remove `species` from the main dataframe and create a new dataframe, `species_actual`, to hold `species`.  Note that the dataframes must maintain their same order, and we cannot do any operations that might alter dataframe length.  
 
 ```{r}
 # New dataframe just holding the target
@@ -146,7 +146,7 @@ penguins <- penguins %>%
   dplyr::select(-species)
 ```
 
-Additionally, we can see below in the distributions of each of our continuous variables that the scales are inconsistent across features. For better model performance, we'll want to standardize each of our features.
+Additionally, we can see below in each of our continuous variables’ distributions that the scales are inconsistent across features. For better model performance, we’ll want to standardize each of our features.
 
 ```{r, message=FALSE, warning=FALSE, echo=FALSE}
 # generate a feature pair plot (without species breakout)
@@ -155,7 +155,7 @@ penguins %>%
   ggpairs()
 ```
 
-In order to do this, we'll administer a z-score standardization to fix our scaling, which will ultimately help with our clustering.
+We normalize our continuous features using a simple z-score standardization.
 
 ```{r}
 # z-score scale continuous features
@@ -168,7 +168,7 @@ penguins[, c("bill_length_mm",
                                                    "body_mass_g")])
 ```
 
-As you can see below, after the z-score standardization, the scaling on the x and y axis is a lot more consistent across our features.
+As you can see below, after the z-score standardization, the scaling on the x and y-axis is now more consistent across our features.
 
 ```{r, message=FALSE, warning=FALSE}
 # pair plot to inpect features after scaling
@@ -177,30 +177,25 @@ penguins %>%
   ggpairs()
 ```
 
-Although this may help with our KNN model, we'll have to be careful about interpretability later on! Finally, we'll want to dummy code our `island` and `sex` variables, since they are categorical, we'll need to convert them to 1s and 0s:  
+Although this may help our KNN model, we’ll have to be careful about interpretability later on! 
+
+Finally, we’ll want to dummy code our categorical `island` and `sex` variables.  This process will create new columns for each value and assign a 0 or 1.  Note that dummy encoding typically drops one value which becomes the baseline.  So if we have a categorical feature with five unique values, we will have four columns.  If all columns are 0, that represents the reference value.  This helps reduce the number of necessary columns.  With dummy columns in place, we need to remove our original `island` and `sex` variable from this dataset. 
 
 ```{r}
 # Dummy code the island feature - this creates a new column for each island (0 || 1)
 island_dcode <- as.data.frame(dummy.code(penguins$island))
 penguins <- cbind(penguins, island_dcode)
-```
 
-We'll also want to remove our original `island` variable from this dataset, since we created our dummy variables:  
-
-```{r}
 # remove the original island factor columns - we will rely on the new dummy columns
 penguins <- penguins %>% 
   dplyr::select(-island)
-```
 
-The same process will then be applied to the `sex` variable:  
-
-```{r}
 # dummy code the sex feature - since there are only 2 states, we will only be adding a single column (0 || 1)
 penguins$sex <- dummy.code(penguins$sex)
+
 ```
 
-Finally, after a fair amount of data tidying and investigation, our data set is ready for our KNN model. We can take a quick look at the updated version of our data set:  
+Our data set is ready for our KNN model.  
 
 ```{r, warning=FALSE, message=FALSE}
 # quick inspect of dataframe
@@ -212,7 +207,7 @@ kable(head(penguins)) %>%
 
 ### Splitting into a Training/Test set
 
-With our data set tidied, we then split it into a training and test set.
+One problem during the modeling process is overfitting.  In this situation, a model appears to have good predictive power, but it has “memorized” the training data and doesn’t generalize with new data.  So, we train with one dataset and evaluate with a separate dataset not seen during training.  It is common to randomly separate the original dataset into 80% / 20%, with 80% used for training.  Since our target variable is in a separate dataframe, we apply the same separation to it as well.
 
 ```{r}
 # we use the fixed random seed for reproducibility
@@ -223,11 +218,7 @@ trainingRows <- createDataPartition(as.matrix(species_actual$species), p=0.8, li
 
 train_penguins <- penguins[trainingRows,]
 test_penguins <- penguins[-trainingRows,]
-```
 
-We'll also do the same for our `target` variable, using the same split:  
-
-```{r}
 # also split out the target dataframes
 species_actual_train <- species_actual$species[trainingRows]
 species_actual_test <- species_actual$species[-trainingRows]
@@ -235,16 +226,16 @@ species_actual_test <- species_actual$species[-trainingRows]
 
 ***
 
-### Fitting our KNN Model  
+### Fitting our kNN Model  
 
-Now, with our data split accordingly, we'll need to identify the appropriate number for k. To do this, we will first take a standard approach of calculating the square root of the number of rows in our training data set:  
+With our data split accordingly, we'll need to identify the appropriate number for `k`. `k` represents the number of nearby neighbors used to determine the sample data point class.   A rule of thumb has us start with the square root of the number of observations (i.e., rows or records).  This varies depending on the number of records, and typically this rule of thumb leads to slightly higher than optimal values, but it’s a good starting point.  Later we will use the `caret` package to help find the optimal value for `k`.  
 
 ```{r}
-# 
+# initial k
 sqrt(nrow(train_penguins))
 ```
 
-We can see above, that it is roughly between 16 and 17. Therefore, we'll perform two KNN models with k=16 and k=17:
+We can see above, that it is approximately 16. Therefore, we’ll perform our initial kNN model with $k=16$.
 
 ```{r}
 set.seed(123) 
@@ -255,32 +246,18 @@ k16 <- knn(train_penguins,
            cl=species_actual_train, 
            k=16)
 
-misClassError <- mean(k16 != species_actual_test)
-paste0('The number of misclassified penguins with 16 neighbors is: ', misClassError)
-table(k16, species_actual_test)
+confusionMatrix(k16, species_actual_test)
 
-
+#misClassError <- mean(k16 != species_actual_test)
+#paste0('The number of misclassified penguins with 16 neighbors is: ', misClassError)
+#table(k16, species_actual_test)
 ```
 
-```{r}
-set.seed(123) 
+Our resulting confusion matrix shows the kNN predicted `species` compared to the actual `species` designations. We can see that $k=16$ performed well on our test set with an overall $Accuracy=0.9662$ and very good `Sensitivity` and `Specificity` for each class between 0.9231 and 1.00.  This tells us that there were very few false positives and negatives.  While this model performed exceptionally well, our choice of $k=16$ might be sub-optimal.  Next, we will leverage `caret:::train()` to help us find the optimal value for `k` thru testing.  
 
-# kNN with 17 clusters
-k17 <- knn(train_penguins, 
-           test_penguins, 
-           cl=species_actual_train, 
-           k=17)
+### Determine Optimal k for kNN
 
-misClassError <- mean(k17 != species_actual_test)
-paste0('The number of misclassified penguins with 17 neighbors is: ', misClassError)
-table(k17, species_actual_test)
-```
-
-From our resulting confusion matrices, that show the classified penguins from our KNN model compared to the actual species designations, we can see that both a k of 16 and a k of 17 preformed well on our test set. Essentially, the misclassification rate showed no difference with k=16 or k=17. Although this approach seemed to work quite effectively, we do need to be careful about how we'd go about using either one of these models to predict new data. With an artificially high k value, we could be underfitting the data.  
-
-### Using the train() function in caret package to run KNN
-
-Therefore, as a final step, we can run one final KNN model using the `caret` package, where the built-in `train()` function will run KNN classification that automatically picks the optimal number of neighbors (k).  
+The built-in caret::train() function will run the KNN classification multiple times with different values for `k`, evaluate model performance, and experimentally determine the optimal value of `k` for our data.  
 
 ```{r}
 # kNN with caret - autofit k
@@ -292,7 +269,7 @@ knn_caret <- train(train_penguins,
 knn_caret
 ```
 
-From our output, we can see that a k value of **9** was chosen as the optimal value for our model based on the `Accuracy` and `Kappa` values calculated. The inter-rater reliability metric of Kappa is quite important when working with unbalanced data sets such as our penguins data set.  Given this, a k value of 9 may ultimately perform better than our initial KNN models where k=16 or k=17. We can see this relationship determined by the `train` function for finding the optimal neighbors plotted below:  
+From our output, we can see that a $k=9$ was found to be the optimal value for our model based on the calculated `Accuracy` and `Kappa` values. The inter-rater reliability metric, `Kappa`, is quite important when working with unbalanced data sets. Unbalanced datasets have different counts for each class.  As the count discrepancy between classes increases, our model can become biased by the larger represented class, leading to poorer predictions of the smaller classes.  Given this, a $k=9$ may ultimately perform better than our initial KNN model with $k=16$, especially on new data.  
 
 ```{r}
 # plot accuracy vs # neighbors
@@ -309,8 +286,10 @@ knn_caret_predictions <- predict(knn_caret, newdata = test_penguins)
 confusionMatrix(knn_caret_predictions, as.factor(species_actual_test))
 ```
 
-In the end, with the `caret` package identifying the "optimal" k-value, we can see that all three of our KNN models performed very well on our test data set. Although it will likely depend on the utility of the KNN model, it does appear that any of our three models could be chosen to provide accurate predictions of the three penguin species.  
-
+In the end, with the `caret` package identifying the "optimal" k-value, we can see that both our KNN models ($k=16$ and $k=9$) performed very well on our test data set. Again, `k` indicates how many nearby data points are used to assign a sample data point to a class.  If our neighboring data points are spread out versus tightly clustered will influence the optimal `k`.  Large `k` values may lead to more misclassifications near borders between classes.  If classes overlap or have non-linear patterns, then smaller `k` values may better identify classes for pockets of data points.  
+ 
+In this case, it appears that either of our models could be chosen to provide accurate predictions of the three penguin species.
+ 
 ***
 
 ## **Part 2: Decision Trees on loan approval data set**
@@ -837,6 +816,7 @@ colnames(t_eval) <- rownames(eval)
 rownames(t_eval) <- colnames(eval)
 knitr::kable(t_eval)
 ```
+
 When comparing our three different techniques to one another, we can see that overall, our decision tree method seemed to perform the worst. With lower overall accuracy, higher classification error rate, and worse performance on measures such as F1, sensitivity and specificity, we can determine that we'd likely not prefer the decision tree approach. Additionally, the decision tree we are using here to evaluate against our other techniques only utilizes one feature (`Credit_History`), and such isn't as flexible if we were to utilize this model on a different dataset.  
 
 When considering model performance, `accuracy` is a good starting point, but from a business perspective, false positives versus false negatives can be quite important.  If the bank incorrectly predicts they shouldn't give a loan, but the applicant would have paid it (false negative), the bank looses out on potential revenue.  If the bank incorrectly gives a loan and the applicant defaults (false positive), then the bank loses money from defaults.  In the end, the bank will need to assign a cost function to both of these situations and determine which has a more negative impact on business.  With all three models, we see high `specificity` between 94~99% which indicates low false negative.  These models do a pretty good job of giving loans to applicants that will repay so there should be little opportunity cost on that side.  However, we see low sensitivity, i.e., high numbers of false positives.  These models would suggest giving loans to applicants that default.  Of the two errors, this second is probably far more expensive.  As a bank we would probably care more about maximizing `Sensitivity` along with `Accuracy`.  With that in mind, the Decision Tree might end up being a better compromise from a business perspectiuve.
