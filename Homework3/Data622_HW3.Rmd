@@ -636,6 +636,7 @@ We want to minimize `xerror`, which in row 2 (a tree with size 2), we see $xerro
 Although this is the case, when using this `cp` value in our `prune()` function, we still obtain accuracy ratings of around 82%. To test different complexity parameters, we used a `cp` value of 0.03246753, which is a tree size of 2. When we use this tree size, and prune our initial tree accordingly, we can see the resulting decision tree.  
 
 ```{r}
+# prune tree
 tree1.pruned <- prune(tree1, cp=0.03246753)
 
 rpart.plot(tree1.pruned, 
@@ -648,10 +649,12 @@ Interestingly, from this pruning process, the `Credit_History` feature alone see
 However, it's important to think critically about whether this pruned tree would perform better on another dataset and is applicable for real-life events. 
 
 ```{r}
+# predict holdout data
 tree1.pruned.pred <- predict(tree1.pruned, 
                              test_loan, 
                              type = "class" )
 
+# show model performance KPIs
 confusionMatrix(tree1.pruned.pred, test_loan$Loan_Status)
 ```
 
@@ -663,7 +666,7 @@ While a single feature offers reasonably good accuracy, there may be mitigating 
 
 ***
 
-**Using the same dataset on Loan Approval Status, please use Random Forests to predict on loan approval status. Again, please be sure to walk us through the steps you took to get to your final model. (50 points)**
+**Using the same dataset on Loan Approval Status, please use Random Forests to predict loan approval status. Again, please be sure to walk us through the steps you took to get to your final model. (50 points)**
 
 To expand on our analysis of the loan approval dataset, we'll run a few random forest models to see if they are a more effective way to classify whether or not someone will be accepted or rejected for a loan.
 
@@ -673,28 +676,35 @@ In order to run a random forest model, we'll use the `randomForest()` function i
 
 ```{r}
 set.seed(123)
+
+# fit a Random Forest model with training data
 fit.forest <- randomForest(Loan_Status ~ Gender + Married + Dependents + 
                              Education + Self_Employed + Income_Xform + 
                              LoanAmount_Xform + Loan_Amount_Term_Xform + 
                              Credit_History + Property_Area,
                            data=train_loan)
 
+# display model details
 fit.forest
 
+# show which feature were most important
 importance(fit.forest)
 ```
+
 After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
 
 ```{r}
+# run predictions with holdout test data
 forest.pred <- predict(fit.forest, 
                        newdata = test_loan)
 
+# show model performance KPIs
 (dtree.cm_train <- confusionMatrix(forest.pred, test_loan$Loan_Status))
 ```
 
-Here, we notice a slight improvement on both samples where accuracy for the training sample is 82.37%. Notice the disparity between Specificity and Sensitivity.  This model has a high false positive rate and tends to over predict `Y` when it should have chosen `N`.
+Here, we notice a slight decrease in `Accuracy` ($Accuracy=0.8197$) compared with our Decision Tree.  for the training sample is 82.37%. Notice the disparity between Specificity and Sensitivity.  This model has a high false-positive rate and tends to over predict `Y` when it should have chosen `N`.
 
-Next, we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, and rate stabilizes that at around 100 trees.
+Next, we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the *OOB error rate* is decreasing with 1-20 trees, and the rate stabilizes around 100 trees.
 
 ```{r}
 plot(fit.forest, 
@@ -706,49 +716,55 @@ legend("topright", colnames(fit.forest$err.rate), col = 1:6, cex = 0.8, fill = 1
 
 ### Tuning our Random Forest Model
 
-In order to see whether the Random forest model can be improved, we will run the same model, but this time we will use the `tuneRF` function. We provide the features, x, target, y, and number of trees used at each tuning step, `ntreeTry`.
+Tto see whether the Random forest model can be improved, we will run the same model, but this time we will use the `tuneRF` function. We provide the features (`x`), target (`y`), and number of trees used at each tuning step (`ntreeTry`).
 
 The values were assigned randomly initially, and they are then tweaked until the optimal value was found.
 
 ```{r}
 set.seed(123)
 
+# run RF tuning
 tree_var <- tuneRF(x = subset(train_loan, select = -Loan_Status), 
                    y = train_loan$Loan_Status, 
                    ntreeTry = 1000)
 ```
 
-We rerun the Random Forest model with the new parameter $Ntree = 1000$ and $Mtry = 3$
+We rerun the Random Forest model with the new parameter $Ntree = 100$ and $Mtry = 6$
 
 ```{r}
 set.seed(123)
 
+# pull out optimal value from previous tuning step
 val_opt <- tree_var [,"mtry"][which.min(tree_var [,"OOBError"])]
 
+# fit a new RF model with better parameters
 fit.forest2 <- randomForest(Loan_Status  ~ Gender + Married + Dependents + 
                               Education + Self_Employed + Income_Xform + 
                               LoanAmount_Xform + Loan_Amount_Term_Xform + 
                               Credit_History + Property_Area,
-                            data=train_loan, 
+                            data = train_loan, 
                             importance = TRUE, 
-                            ntree=1000, 
-                            mtry = val_opt)
+                            ntree = 100, 
+                            mtry = 6)
 
+# display model details
 fit.forest2
 ```
 
-The results of the Random Forest model on our training set yielded an out of bag error rate of 22.39%, which is lower than the original model's OOB error of 23.88%. Therefore, we can see that tuning our model did help to reduce the OOB error slightly.  
+The results of the Random Forest model on our training set yielded an out of bag error rate of 21.14%, which is higher than the original model's OOB error of 20.33%, but still very close. Tuning in this case didn't seem to make much difference.  
 
 ```{r}
+# predict using holdout data 
 forest.pred2 <- predict(fit.forest2, 
                         newdata = test_loan)
 
+# show model performance KPIs
 (forest.cm_train <- confusionMatrix(forest.pred2, test_loan$Loan_Status))
 ```
 
-When we subject our second Random Forest Model to make predictions on our test set, we notice that there is slightly higher accuracy than our previous model, which is roughly 84.1%. The tuned model has performed better than the test data set than the original Random Forest. The accuracy is slightly increased, and the 95 % CI has increase a bit too. 
+When we use our second Random Forest Model to make predictions on our test set, we notice slightly lower accuracy, $Accuracy=79.5%$, compared to our untuned RF model, $Accuracy=81.97%$. 
 
-Next we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the  OOB error rate is decreasing with 1-20 trees, increasing a little bit with 20-50 trees, and rate stabilizes that at around 100 trees.
+Next, we want to see if we have generated enough trees so that the Out Of Bag (OOB Error) error rates are minimum. From the below we see that the OOB error rate is decreasing with 1-20 trees, increasing a little bit with 20-50 trees, and the rate stabilizes that at around 60 trees.
 
 ```{r}
 plot(fit.forest2, 
@@ -764,7 +780,7 @@ legend("topright", colnames(fit.forest2$err.rate), col = 1:6, cex = 0.8, fill = 
 
 ***
 
-**Using the Loan Approval Status data, please use Gradient Boosting to predict on the loan approval status. Please use whatever boosting approach you deem appropriate;but please be sure to walk us through your steps. (50 points)**
+**Using the Loan Approval Status data, please use Gradient Boosting to predict the loan approval status. Please use whatever boosting approach you deem appropriate;but please be sure to walk us through your steps. (50 points)**
 
 ### Initial Model
 
