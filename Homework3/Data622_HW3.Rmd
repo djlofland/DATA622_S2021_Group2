@@ -834,15 +834,6 @@ summary(boost2)
 
 We can see the number of relative influence of some of the lower features changed and also the RMSE change to 0.3886695, lower than our previous model.
 
-The partial Dependence Plots tell us the relationship and dependence of the variables `X` with the Response variable `Y`.
-
-```{r}
-# partial dependence plots
-plot(boost2, i="LoanAmount_Xform")
-plot(boost2, i="Income_Xform")
-```
-Recall we applied transforamtions on these features.  By reversing the transforms, we find that the first plot shows `LoanAmount` is negatively correlated with the response `Loan_Status` before `r exp(5.7)`K. The second plot indicate `Income` is positively correlated with `Loan_Status` when it less than $20,000.
-
 ```{r warning=FALSE}
 # plot loss function as a result of n trees added to the ensemble
 gbm.perf(boost2, method = "cv")
