@@ -780,60 +780,68 @@ legend("topright", colnames(fit.forest2$err.rate), col = 1:6, cex = 0.8, fill = 
 
 ***
 
-**Using the Loan Approval Status data, please use Gradient Boosting to predict the loan approval status. Please use whatever boosting approach you deem appropriate;but please be sure to walk us through your steps. (50 points)**
+**Using the Loan Approval Status data, please use Gradient Boosting to predict the loan approval status. Please use whatever boosting approach you deem appropriate; but please be sure to walk us through your steps. (50 points)**
 
 ### Initial Model
+
+gbm uses a default number of trees of 100, which is rarely sufficient. Consequently, we increase it to 1000 trees. The default depth of each tree `interaction.depth` is 1, which means we are ensembling many stumps. Lastly, we include `cv.folds` to perform a 3-fold cross-validation.
 
 ```{r}
 set.seed(123)
 
-boost <- gbm(Loan_Status~., 
+# build gradient boosted model
+boost <- gbm(Loan_Status  ~ Gender + Married + Dependents + 
+                              Education + Self_Employed + Income_Xform + 
+                              LoanAmount_Xform + Loan_Amount_Term_Xform + 
+                              Credit_History + Property_Area, 
              data=train_loan[,-1],
              distribution = "gaussian",
              n.trees = 1000,
              cv.folds = 3)
-```
 
-gbm uses a default number of trees of 100, which is rarely sufficient. Consequently, I crank it up to 1,000 trees. The default depth of each tree (interaction.depth) is 1, which means we are ensembling a bunch of stumps. Lastly, I also include cv.folds to perform a 3 fold cross validation. 
-
-```{r}
+# display model details
 boost
 sqrt(min(boost$cv.error))
 summary(boost)
 ```
-The best cross-validation iteration was 34 and the RMSE is 0.3913894
 
-The summary of output creates a new data set with var, a factor variable with the variables in our model, and rel.inf, the relative influence each variable had on our model predictions.From the table, we can see `LoanAmount`, `LogIncome` and `Credit_History` are the top three most important variable for our model.
+The best cross-validation iteration was 62 and the RMSE is 0.3913306
+
+The summary of output creates a new data set with `var`, a factor variable with the variables in our model, and `rel.inf`, the relative influence each variable had on our model predictions. From the table, we can see `LoanAmount`, `Income_Xform`, and `Credit_History` are the top three most important variables for our model.  Notice that the feature importance is different than we saw in our decision tree and illustrates how downstream features can be important.  RF and GB both create many trees, randomly selecting different features, allowing less important features a chance to compete for attention.
 
 ### Tuning
 
-We could tune parameters to see how the results change. Here, I increase the number of trees and also perform a 5 fold cross validation.
+We can tune parameters to see if we can improve the performance. We increase the number of trees (`n.trees`) and perform a 5-fold cross-validation (`cv.folds`).
 
 ```{r}
 set.seed(123)
 
-boost2<-gbm(Loan_Status~., 
-            data=train_loan[,-1],
-            distribution = "gaussian",
-            n.trees = 2000,
-            cv.folds = 5)
+# train gb model with different parameters
+boost2 <- gbm(Loan_Status  ~ Gender + Married + Dependents + 
+                              Education + Self_Employed + Income_Xform + 
+                              LoanAmount_Xform + Loan_Amount_Term_Xform + 
+                              Credit_History + Property_Area, 
+              data = train_loan[,-1],
+              distribution = "gaussian",
+              n.trees = 2000,
+              cv.folds = 5)
 
+# display performance KPIs
 sqrt(min(boost2$cv.error))
 
 summary(boost2)
 ```
 
-We can see the number of relative influence of each variable change and also the RMSE change to 0.3900092, lower than our previous model.
+We can see the number of relative influence of some of the lower features changed and also the RMSE change to 0.3886695, lower than our previous model.
 
-The partial Dependence Plots tell us the relationship and dependence of the variables X with the Response variable Y.
+The partial Dependence Plots tell us the relationship and dependence of the variables `X` with the Response variable `Y`.
 
 ```{r}
-#partial dependence plots
-plot(boost2,i="LoanAmount")
-plot(boost2,i="Income")
-
+# partial dependence plots
+plot(boost2, i="LoanAmount_Xform")
+plot(boost2, i="Income_Xform")
 ```
-The first plot shows loanAmount is negatively correlated with the response Loan_Status before 300K. The second plot indicate income is positively correlated with Loan_Status when it less than $20,000.
+Recall we applied transforamtions on these features.  By reversing the transforms, we find that the first plot shows `LoanAmount` is negatively correlated with the response `Loan_Status` before `r exp(5.7)`K. The second plot indicate `Income` is positively correlated with `Loan_Status` when it less than $20,000.
 
 ```{r warning=FALSE}
 # plot loss function as a result of n trees added to the ensemble
@@ -842,14 +850,15 @@ gbm.perf(boost2, method = "OOB")
 
 ```
 
-The plots indicating the optimum number of trees based on the technique we used. The green line indicates error on test and the blue dotted line points the optimum number of iterations. We can observe that the beyond a certain a point (55 iterations for the `cv` method and 40 for the `OOB` method), the error on the test data appears to increase because of overfitting. 
+The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (50 iterations for the `cv` method and 40 for the `OOB` method), the test data’s error appears to increase because of overfitting.  
 
-We use model 2 to forecast our data. According to the `cv` method, we choose 55 as the number of trees.
+We use model 2 to forecast our data. According to the `cv` method, we choose 50 as the number of trees.
 
 ```{r}
+# predict based on holdout test data with tuned parameters
 boostPre <- predict.gbm(boost2, 
                         test_loan, 
-                        n.trees = 55)
+                        n.trees = 50)
 
 boostPre <- ifelse(boostPre < 1.5, 'N', 'Y')
 boostPre <- as.factor(boostPre)
@@ -857,7 +866,7 @@ boostPre <- as.factor(boostPre)
 (boost.cm <- confusionMatrix(boostPre, test_loan$Loan_Status))
 ```
 
-According to the Confusion matrix, Our model accuracy is 0.841. Looking at Sensitivity and Specificaity, this model is has a far lower False Negative rate and is less likely to pick 'N' when it shouldn't.  However, it's False positive rate is higher and where it picked 'Y' when it should have predicted 'N'. 
+According to the Confusion matrix, Our model `Accuracy` is 0.8525.  Looking at `Sensitivity` and `Specificity`, this model is has a far lower false-negative rate and is less likely to pick 'N' when it shouldn't.  However, its false-positive rate is higher, where it selected 'Y' when it should have predicted 'N'. 
 
 ***
 
