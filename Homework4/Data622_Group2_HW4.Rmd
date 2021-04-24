@@ -1,0 +1,415 @@
+---
+title: "Data 622 - Homework #4 (Group 2)"
+author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Grace Han, Zach Alexander"
+date: "5/7/2021"
+output: 
+  html_document:
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float: true
+    code_folding: hide
+  pdf_document:
+    extra_dependencies: ["geometry", "multicol", "multirow", "xcolor"]
+---
+
+Source Code: [https://github.com/djlofland/DATA622_S2021_Group2/tree/master/Homework4](https://github.com/djlofland/DATA622_S2021_Group2/tree/master/Homework4)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r, include=FALSE}
+library(readxl)           # Y Read Excel Data
+
+require(naniar)
+library(skimr)
+require(VIM)
+library(imputeTS)
+
+library(doParallel)   # Leverage multiple cores for ML
+
+require(MASS)
+require(gbm)
+require(xgboost)
+library(forecast)
+require(rpart)
+require(rpart.plot)
+require(randomForest)
+require(caret)
+require(pROC)
+
+library(tidyverse)        # TIDY packages
+library(dplyr)   # dplyr has to be loaded before tidyr
+library(tidyr)
+
+require(ggplot2)
+require(GGally)
+require(tidyr)
+require(Amelia)
+require(psych)
+require(class)
+require(tree)
+require(knitr)
+require(kableExtra)
+require(mice)
+
+library(corrplot)
+library(RColorBrewer)
+library(broom)
+library(cluster)
+library(factoextra)
+library(NbClust)
+
+```
+
+
+For this assignment, we will be working with a very interesting mental health dataset from a real-life research project. All identifying information, of course, has been removed. The attached spreadsheet has the data (the tab name “Data”). The data dictionary is given in the second tab. You can get as creative as you want. The assignment is designed to really get you to think about how you could use different methods.
+
+***
+
+## **Load Data & EDA**
+
+***
+
+### Load Data
+
+We start by loading the Excel dataset provided into a dataframe.
+
+```{r, echo=FALSE}
+# Load data
+df <- read_excel('data/ADHD_data.xlsx')
+```
+
+#### Data Frame summary
+
+```{r}
+# Show df summary deatils
+skim(df)
+```
+
+#### Data Sample
+
+```{r}
+# Display first few rows for inspection
+kable(head(df)) %>% 
+  kable_styling(bootstrap_options = "basic")
+```
+
+[TODO: Add any commentary about data that we see ... missing, patterns, # rows, # cols, etc]  
+
+#### Data Dictionary
+
+* **Initial** *Respondents initial*:  we will drop this column
+* **Age** *Age*:  0 ... 69
+* **Sex** *Sex*:  Male-1, Female-2
+* **Race** *Race*:  White-1, African American-2, Hispanic-3, Asian-4, Native American-5, Other or missing data -6
+* **ADHD Q(n)** *ADHD self-report scale*: Never-0, rarely-1, sometimes-2, often-3, very often-4
+* **ADHD Total** *ADHD self-report Total*: Sum of ADHD question scores
+* **MD Q(n)** *Mood disorder questions*: No-0, yes-1; question 3: no problem-0, minor-1, moderate-2, serious-3
+* **MD TOTAL** *MD self-report Total*: Sum of MD question scores
+* **Alcohol**  *Individual substances misuse*:  no use-0, use-1, abuse-2, dependence-3
+* **THC**  *Individual substances misuse*:  no use-0, use-1, abuse-2, dependence-3
+* **Cocaine**  *Individual substances misuse*:  no use-0, use-1, abuse-2, dependence-3
+* **Stimulants**  *Individual substances misuse*:  no use-0, use-1, abuse-2, dependence-3
+* **Sedative-hypnotics**  *Individual substances misuse*:  no use-0, use-1, abuse-2, dependence-3
+* **Opioids**  *Individual substances misuse*:  no use-0, use-1, abuse-2, dependence-3
+* **Court order** *Court Order*:  No-0, Yes-1
+* **Education** *Education*: 1-12 grade, 13+ college
+* **Hx of Violence** *History of Violence*: No-0, Yes-1
+* **Disorderly Conduct** *Disorderly Conduct*: No-0, Yes-1
+* **Suicide** *Suicide attempt*: No-0, Yes-1
+* **Abuse** *Abuse Hx*: No-0, Physical (P)-1, Sexual (S)-2, Emotional (E)-3, P&S-4, P&E-5, S&E-6, P&S&E-7
+* **Non-subst Dx** *Non-substance-related Dx*: 0 – none; 1 – one; 2 – More than one
+* **Subst Dx** *Substance-related Dx*: 0 – none; 1 – one Substance-related; 2 – two; 3 – three or more
+* **Psych meds.** *Psychiatric Meds*: 0 – none; 1 – one psychotropic med; 2 – more than one psychotropic med
+
+### Missing Values
+
+As we saw in our data summary, we have some missing values.  Lets explore this a little further to see if any important patterns stand out.  
+
+```{r}
+# Use nanair package to plot missing value patterns
+gg_miss_upset(df)
+```
+The missing data only appears in a few of our features: `Suicide`, `Abuse`, `Non-subst Dx`, `Subst Dx`, and `Psych meds.`.
+
+For factors, doing traditional imputing approaches can be problematic.  While in most cases, missing can might be inferred as 0, we don't know if there were problems with administering, coding the survey, and/or patients didn't want to answer and skipped questions (when some of these may have applied).  So, rather than dropping the rows or imputing, we will instead create new factor values 'NA' for each indicating that we lack that information. 
+
+We also see that for each respondent, we have their initial.  This won't be useful for our purposes (note there are also duplicates where multiple people had the same initials).
+
+```{r}
+# Replace missing with 'unknown' so we have a factor value for each
+df <- df %>% 
+  na_replace('unknown')
+
+# Drop Initial column
+df <- df %>% 
+  dplyr::select(-Initial)
+```
+
+Looking at our dataset, we see that missing values are no longer an issue; however, we still have some additional cleanup to perform on our dataset below before we proceed with kNN modeling.   
+
+```{r}
+# Display data from summary
+skim(df)
+```
+
+#### Fix Datatypes
+
+We know that most of our features are either factors or ordinal factors.  Let's recode from `float` to `factor` to ensure our models don't incorrectly treat them as continuous.  Note that we'll leave `Age` as continuous even though it's technically an ordinal factor.  Also, for simplicity, `boolean` features (only 0 or 1) can be left as `interger`.  Looking ahead, factors are going to lead to a large number of features when we dummy code in preparation for modeling.  Dummy encoding leads to separate columns for each value.  High dimensions can lead to problems [TODO: insert discussion as to why here].  Fortunately, we don't have that many features and values, so we aren't starting with an excessive number of coumns.  That said, we will likely need to either reduce dimensions thorough PCA or different recoding approaches.  
+
+```{r}
+# We'll leave age as an integer
+df$Age                  <- as.integer(df$Age)
+
+# Misc columns (note: some columns are ordinal, others are not)
+df$Sex                  <- factor(df$Sex)
+df$Race                 <- factor(df$Race)
+df$Alcohol              <- factor(df$Alcohol, levels=c("unknown", 0, 1, 2, 3))
+df$THC                  <- factor(df$THC, levels=c('unknown', 0, 1, 2, 3))
+df$Cocaine              <- factor(df$Cocaine, levels=c('unknown', 0, 1, 2, 3))
+df$Stimulants           <- factor(df$Stimulants, levels=c('unknown', 0, 1, 2, 3))
+df$`Sedative-hypnotics` <- factor(df$`Sedative-hypnotics`, levels=c('unknown', 0, 1, 2, 3))
+df$Opioids              <- factor(df$Opioids, levels=c('unknown', 0, 1, 2, 3))
+
+df$Education            <- factor(df$Education, levels=c('unknown', 0, 1, 2, 3, 4, 5, 6, 7, 8, 
+                                                         9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20))
+
+df$`Court order`        <- factor(df$`Court order`, levels=c('unknown', 0, 1))
+df$`Hx of Violence`     <- factor(df$`Hx of Violence`, levels=c('unknown', 0, 1))
+df$`Disorderly Conduct` <- factor(df$`Disorderly Conduct`, levels=c('unknown', 0, 1))
+df$Suicide              <- factor(df$Suicide, levels=c('unknown', 0, 1))
+
+df$Abuse                <- factor(df$Abuse, levels=c('unknown', 0, 1, 2, 3, 4,5, 6, 7))
+
+df$`Non-subst Dx`       <- factor(df$`Non-subst Dx`, levels=c('unknown', 0, 1, 2))
+df$`Subst Dx`           <- factor(df$`Subst Dx`, levels = c('unknown', 0, 1, 2, 3))
+df$`Psych meds.`        <- factor(df$`Psych meds.`, levels=c('unknown', 0, 1, 2))
+
+# Quick trick to fix all columns matching name patter
+df <- df %>%
+  mutate(across(contains('ADHD'), factor)) %>%
+  mutate(across(contains('MD Q'), factor))
+
+# Back these out since they are totals (sum), not factor
+df$`ADHD Total`         <- as.integer(df$`ADHD Total`)
+df$`MD TOTAL`           <- as.integer(df$`MD TOTAL`)
+```
+
+### Feature Plots
+
+For the continuous variables, we can examine the distributions, broken out by the target variable, `Sex`.  
+
+[TODO: This was quick and dirty placeholder ... Provide better visualizations, possibly by feature category (e.e.g, ADHD, MD, Substance Abuce columns, etc)]
+
+```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, echo=FALSE}
+# Generate feature pair plots
+df %>%
+  dplyr::select(Sex, Race, Alcohol, THC, Abuse) %>%
+  ggpairs(aes(color = Sex, alpha = 1)) # 
+```
+
+[TODO: Insert CorrPlot?  Since he have high dimensions, it may be problematic to visualize.  Maybe if we facet?  not sure]
+
+Placeholder (and useless) image inserted below.  
+
+```{r}
+library(ggcorrplot)
+model.matrix(~., data=df) %>% 
+  cor(use="pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=2)
+```
+
+[TODO: Describe any clear feature distributions or correlations patterns] 
+
+### Dummy Columns
+
+We’ll need to dummy code our categorical variables.  This process will create new columns for each value and assign a 0 or 1.  Note that dummy encoding typically drops one value which becomes the baseline.  So if we have a categorical feature with five unique values, we will have four columns.  If all columns are 0, that represents the reference value.  This helps reduce the number of necessary columns.  With dummy columns in place, we need to remove our original variables from this dataset. 
+
+```{r}
+# dummy encode our categorical features
+df_dummy <- dummyVars(~ 0 + ., drop2nd=TRUE, data = df)
+df_dummy <- data.frame(predict(df_dummy, newdata = df))
+
+# Uncomment if we want to verify the dummy df summary
+#skim(df_dummy)
+```
+
+### (Near) Zero Variance
+
+We should remove any columns with zero variance.  Note, since we are working with a sparse dataset, we do NOT want to remove **near** zero variance, jsut **zer** variance.
+
+```{r}
+nzv <- nearZeroVar(df_dummy, saveMetrics= TRUE)
+(nzv %>% filter(zeroVar == T))
+
+# drop columns with zero variance
+nzv <- nearZeroVar(df_dummy)
+df_dummy <- df_dummy[, -nzv]
+```
+
+
+[TODO: Should we revisit correlations between factor variable?  Describe any clear feature distributions or correlations patterns] 
+
+### Feature Correlation
+
+[TODO: Show feature value correlations]
+
+[TODO: Discuss multicolineatity and determine if any features are candidates to be dropped up front.]
+
+### Class imbalance
+
+If values within factors are highly imbalanced, then we can get bias where specific values are better repreented an thus algorithms have more datapoints to learn from.  
+
+[TODO: If any strong class imbalance of values with in a feature, we might need to bootstrap or resample to address]
+
+Next, we'll do some data tidying to get our data set ready for our KNN model. [TODO: Insert discussion on any features to remove, keep, data type changes, needs transforms, etc]  
+
+```{r}
+# remove any features
+#df <- df %>% 
+#  dplyr::select(-c())
+```
+
+### Transforms
+
+`Age` is our only continuous variable.  We normalize our continuous features using a simple z-score standardization.  Although this may help our KNN model, we’ll have to be careful about interpretability later on!
+
+```{r}
+# z-score scale continuous features
+df[, c("Age")] <- scale(df[, c("Age")])
+```
+
+Our data set is ready for our unsupervised models.  
+
+```{r, warning=FALSE, message=FALSE}
+# quick inspect of dataframe
+kable(head(df_dummy)) %>% 
+  kable_styling(bootstrap_options = "basic")
+```
+
+
+***
+
+## **Part 1: Cluster Patients**
+
+***
+
+Please use a clustering method to find clusters of patients here.  Whether you choose to use k-means clustering or hierarchical clustering is up to you as long as you reason through your work. Can you come up with creative names for the profiles you found? *(60)*
+
+### K-Means
+
+[TODO: Describe what K-Means is and what we will do]
+
+#### Determine # Segments
+
+We'll need to identify the appropriate number for `k`. `k` represents the number of clusters we will group rows into.  Three common techniques are: Elbow, Silhouette, Gap statistic, and NBClust().  For simplicity, we will uyse the Elbow approach.  [TODO: Insert disscussion]  
+
+```{r}
+# Elbow method
+fviz_nbclust(df_dummy, kmeans, method = "wss") +
+  geom_vline(xintercept = 4, linetype = 2) + # add line for better visualization
+  labs(subtitle = "Elbow method") # add subtitle
+```
+
+We can see above, that it is approximately 5. More clusters do not improve within segment variability.  Therefore, we’ll perform our initial K-Means model with $k=5$.
+
+#### Build Model
+
+```{r}
+set.seed(42)
+km_res <- kmeans(df_dummy, centers = 5, nstart = 20)
+
+summary(km_res)
+
+sil <- silhouette(km_res$cluster, dist(df_dummy))
+fviz_silhouette(sil)
+
+fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
+```
+
+[TODO: Discussion of model results]
+
+### Hierarchical Clustering
+
+[TODO: Describe what HC is and what we will do]
+
+#### Model
+
+```{r}
+
+```
+
+[TODO: Discussion of model results]
+
+### Identify "Profiles"
+
+[EDA of Segments - use variable importance to see which features (factor and value) were most important, then see if there are clear groupings]
+
+```{r}
+
+```
+
+[TODO: Overall Discussion of segments]
+
+***
+
+## **Part 2: Principal Component Analysis (PCA)**
+
+***
+
+Let’s explore using Principal Component Analysis on this dataset.  You will note that there are different types of questions in the dataset: **columns E-W**: ADHD self-report; **column X–AM**: mood disorders questionnaire, **column AN-AS**: Individual Substance Misuse; etc. Please reason through your work as you decide on which sets of variables you want to use to conduct Principal Component Analysis. *(60)*
+
+```{r}
+df_dummy.pca <- prcomp(df_dummy, center = TRUE,scale. = TRUE)
+
+summary(df_dummy.pca)
+```
+
+```{r fig.height=8, fig.width=12}
+biplot(df_dummy.pca, scale = 0)
+```
+```{r}
+#compute standard deviation of each principal component
+std_dev <- df_dummy.pca$sdev
+
+#compute variance
+pr_var <- std_dev^2
+
+#check variance of first 10 components
+pr_var[1:10]
+prop_varex <- pr_var/sum(pr_var)
+prop_varex[1:10]
+
+#scree plot
+plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+
+#cumulative scree plot
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+```
+
+
+***
+
+## **Part 3: Cluster Patients**
+
+***
+
+Assume you are modeling whether a patient attempted suicide (column AX). Please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted information from the variables. This can be a really fun modeling task! *(80)*
+
+
+
+
+
+
+
+
+
+
+
