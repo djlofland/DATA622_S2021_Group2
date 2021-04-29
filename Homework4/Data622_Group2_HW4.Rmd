@@ -82,22 +82,16 @@ We start by loading the Excel dataset provided into a dataframe.
 df <- read_excel('data/ADHD_data.xlsx')
 ```
 
-#### Data Frame summary
-
-```{r}
-# Show df summary deatils
-skim(df)
-```
 
 #### Data Sample
+
+Next, we can take a quick look at the dataframe features. By highlighting the data dictionary below, and printing the first few rows, we can start to establish some context around the data that has been collected from the survey.
 
 ```{r}
 # Display first few rows for inspection
 kable(head(df)) %>% 
   kable_styling(bootstrap_options = "basic")
 ```
-
-[TODO: Add any commentary about data that we see ... missing, patterns, # rows, # cols, etc]  
 
 #### Data Dictionary
 
@@ -125,6 +119,20 @@ kable(head(df)) %>%
 * **Subst Dx** *Substance-related Dx*: 0 – none; 1 – one Substance-related; 2 – two; 3 – three or more
 * **Psych meds.** *Psychiatric Meds*: 0 – none; 1 – one psychotropic med; 2 – more than one psychotropic med
 
+
+#### Data Frame summary
+
+After reading in the dataframe and identifying the data dictionary that explains the values for our features, our next step is to do some exploratory analysis. We can initially run the `skim()` function to find important generalized information about the dataset.
+
+```{r}
+# Show df summary deatils
+skim(df)
+```
+We can see above that the dataset consists of 175 observations and 54 different features. A few of the features have quite a few missing values, including the `Psych meds.` feature (with 118 missing values), as well as `Subst Dx` and `Non-subst Dx`, which have 23 and 22 missing values, respectively. These questions, when looking at the data summary above, correspond to medication questions that are specific to a particular population -- for instance, when sampling the general population for a survey, likely a smaller percentage (and not a majority) will be on psychiatric medication, or be taking medication for substance use/non-substance use related causes. Therefore, many of these missing values make sense, but will be important to keep in mind when we start our clustering techniques.  
+
+Another interesting component of the `skim()` function is to be able to take a quick look at the distribution of responses for each feature. From the `Education` distribution, we can see that the median education level was a high school diploma (12th grade). Also, there seemed to be slightly more males than females that responded to the survey, and the median age was around 42 years. Additionally, we can see that a majority of respondents to many of the substance use questions, such as `Cocaine`, `THC` and `Alcohol` tended to answer as either "no use", or "dependence", with not much gray area in between. Finally, a large majority of respondents self-identified their race as White.  
+
+
 ### Missing Values
 
 As we saw in our data summary, we have some missing values.  Lets explore this a little further to see if any important patterns stand out.  
@@ -135,7 +143,7 @@ gg_miss_upset(df)
 ```
 The missing data only appears in a few of our features: `Suicide`, `Abuse`, `Non-subst Dx`, `Subst Dx`, and `Psych meds.`.
 
-For factors, doing traditional imputing approaches can be problematic.  While in most cases, missing can might be inferred as 0, we don't know if there were problems with administering, coding the survey, and/or patients didn't want to answer and skipped questions (when some of these may have applied).  So, rather than dropping the rows or imputing, we will instead create new factor values 'NA' for each indicating that we lack that information. 
+For factors, doing traditional imputing approaches can be problematic.  While in most cases, missing data might be inferred as 0, we don't know if there were problems with administering, coding the survey, and/or patients didn't want to answer and skipped questions (when some of these may have applied).  So, rather than dropping the rows or imputing, we will instead create new factor values 'NA' for each indicating that we lack that information. 
 
 We also see that for each respondent, we have their initial.  This won't be useful for our purposes (note there are also duplicates where multiple people had the same initials).
 
@@ -158,7 +166,7 @@ skim(df)
 
 #### Fix Datatypes
 
-We know that most of our features are either factors or ordinal factors.  Let's recode from `float` to `factor` to ensure our models don't incorrectly treat them as continuous.  Note that we'll leave `Age` as continuous even though it's technically an ordinal factor.  Also, for simplicity, `boolean` features (only 0 or 1) can be left as `interger`.  Looking ahead, factors are going to lead to a large number of features when we dummy code in preparation for modeling.  Dummy encoding leads to separate columns for each value.  High dimensions can lead to problems [TODO: insert discussion as to why here].  Fortunately, we don't have that many features and values, so we aren't starting with an excessive number of coumns.  That said, we will likely need to either reduce dimensions thorough PCA or different recoding approaches.  
+We know that most of our features are either factors or ordinal factors.  Let's recode from `float` to `factor` to ensure our models don't incorrectly treat them as continuous.  Note that we'll leave `Age` as continuous even though it's technically an ordinal factor.  Also, for simplicity, `boolean` features (only 0 or 1) can be left as `integer`.  Looking ahead, factors are going to lead to a large number of features when we dummy code in preparation for modeling.  Dummy encoding leads to separate columns for each value.  High dimensions can lead to problems [TODO: insert discussion as to why here].  Fortunately, we don't have that many features and values, so we aren't starting with an excessive number of coumns.  That said, we will likely need to either reduce dimensions thorough PCA or different recoding approaches.  
 
 ```{r}
 # We'll leave age as an integer
@@ -188,7 +196,7 @@ df$`Non-subst Dx`       <- factor(df$`Non-subst Dx`, levels=c('unknown', 0, 1, 2
 df$`Subst Dx`           <- factor(df$`Subst Dx`, levels = c('unknown', 0, 1, 2, 3))
 df$`Psych meds.`        <- factor(df$`Psych meds.`, levels=c('unknown', 0, 1, 2))
 
-# Quick trick to fix all columns matching name patter
+# Quick trick to fix all columns matching name pattern
 df <- df %>%
   mutate(across(contains('ADHD'), factor)) %>%
   mutate(across(contains('MD Q'), factor))
@@ -202,14 +210,117 @@ df$`MD TOTAL`           <- as.integer(df$`MD TOTAL`)
 
 For the continuous variables, we can examine the distributions, broken out by the target variable, `Sex`.  
 
-[TODO: This was quick and dirty placeholder ... Provide better visualizations, possibly by feature category (e.e.g, ADHD, MD, Substance Abuce columns, etc)]
+[TODO: This was quick and dirty placeholder ... Provide better visualizations, possibly by feature category (e.e.g, ADHD, MD, Substance Abuse columns, etc)]
 
-```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=10, echo=FALSE}
-# Generate feature pair plots
-df %>%
-  dplyr::select(Sex, Race, Alcohol, THC, Abuse) %>%
-  ggpairs(aes(color = Sex, alpha = 1)) # 
+```{r, fig.height = 6, fig.width = 6}
+
+df_plot = df %>% mutate(Sex = ifelse(Sex == 1, "Male", "Female"))
+
+par(mfrow=c(2,3))
+par(oma=c(0,0,6,0))
+
+
+tbl1 <- table(df_plot$Sex, df_plot$Alcohol)
+barplot(tbl1, main="Alcohol use",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)), legend=TRUE)
+
+tbl2 <- table(df_plot$Sex, df_plot$Cocaine)
+barplot(tbl2, main="Cocain use",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl3 <- table(df_plot$Sex, df_plot$THC)
+barplot(tbl3, main="THC use",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl4 <- table(df_plot$Sex, df_plot$Stimulants)
+barplot(tbl4, main="Stimulant use",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl5 <- table(df_plot$Sex, df_plot$`Sedative-hypnotics`)
+barplot(tbl5, main="Sedative-hypnotic use",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl6 <- table(df_plot$Sex, df_plot$Opioids)
+barplot(tbl6, main="Opioid use",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+
+title("(0 = No use, 1 = Use, 2 = Abuse, 3 = Dependence)" , outer=TRUE)
+par(oma=c(1,0,3,0))
+title("SUBSTANCE USE RESPONSES BY SEX" , outer=TRUE)
+
+
 ```
+```{r, fig.height=3, fig.width=6}
+
+myColors <- ifelse(df_plot$Sex=="Male" , "thistle3", "cornflowerblue")
+
+par(mfrow=c(1,2))
+boxplot(df_plot$`ADHD Total`~df_plot$Sex, xlab="", ylab = "ADHD Total", main="ADHD Totals by Sex", col=myColors)
+boxplot(df_plot$`MD TOTAL`~df_plot$Sex, xlab="", ylab = "MD Total", main="MD Totals by Sex", col=myColors)
+```
+
+```{r, fig.height=8, fig.width=6}
+par(mfrow=c(2,2))
+par(oma=c(0,0,6,0))
+
+tbl7 <- table(df_plot$Sex, df_plot$`Court order`)
+barplot(tbl7, main="Court order",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl8 <- table(df_plot$Sex, df_plot$`Hx of Violence`)
+barplot(tbl8, main="History of violence",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl9 <- table(df_plot$Sex, df_plot$`Disorderly Conduct`)
+barplot(tbl9, main="Disorderly conduct",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)))
+
+tbl11 <- table(df_plot$Sex, df_plot$Suicide)
+barplot(tbl11, main="Suicide",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)), legend=TRUE)
+
+
+title("(0 = No, 1 = Yes)" , outer=TRUE)
+par(oma=c(1,0,3,0))
+title("MENTAL HEALTH AND JUSTICE INVOLVEMENT BY SEX" , outer=TRUE)
+```
+
+
+```{r, fig.height=6, fig.width=6}
+
+par(mfrow=c(1,1))
+par(oma=c(4,0,0,0))
+
+df_plot = df_plot %>% mutate(Abuse = ifelse(Abuse == 0, "None", 
+                              ifelse(Abuse == 1, "Physical (P)", 
+                              ifelse(Abuse == 2, "Sexual (S)", 
+                              ifelse(Abuse == 3, "Emotional (E)",
+                              ifelse(Abuse == 4, "P & S", 
+                              ifelse(Abuse == 5, "P & E", 
+                              ifelse(Abuse == 6, "S & E", 
+                              ifelse(Abuse == 7, "P & E & S", "Unknown")))))))))
+
+tbl10 <- table(df_plot$Sex, df_plot$Abuse)
+barplot(tbl10, main="Abuse",
+        col=c("thistle3", "cornflowerblue"), ylim=range(c(0, 180)), las=2, legend=TRUE)
+```
+
+
+When looking at these figures broken out by our target variable `Sex`, we can see a few things:  
+
++ Interestingly, it appears that female respondents had an ADHD total score that was trending higher than male respondents.  
+
++ MD totals were similar across both male and female respondents.  
+
++ It appears that both male and female respondents answered "No use", more frequently for substances such as stimulants, sedative-hypnotics, and opioids, than for some of the more common drugs, such as alcohol, THC, and cocaine.  
+
++ It also looks like males responded more frequently as having a history of violence, or disorderly conduct.  
+
++ Conversely, it looks like females responded slightly more frequently than males as having attempted suicide.  
+
++ Finally, when looking closely at the breakdown of responses to the Abuse question by sex, we can see that females overwhelmingly responded more frequently of having experienced some form of abuse, especially sexual abuse or a combination of sexual abuse with other forms of abuse. This was noticeably more frequent than the responses by their male counterparts.
+
 
 [TODO: Insert CorrPlot?  Since he have high dimensions, it may be problematic to visualize.  Maybe if we facet?  not sure]
 
@@ -221,6 +332,16 @@ model.matrix(~., data=df) %>%
   cor(use="pairwise.complete.obs") %>% 
   ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=2)
 ```
+
+[Zach comment: I also tried to find a better way to visualize this, but came up empty. I did attempt a distance plot, but similar to yours above, there seem to be too many dimensions. My code below is pretty useless, but wanted to keep it in just in case it spurred other ideas.]
+
+```{r}
+library(factoextra)
+distance <- get_dist(df)
+fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
+```
+
+
 
 [TODO: Describe any clear feature distributions or correlations patterns] 
 
@@ -301,9 +422,19 @@ Please use a clustering method to find clusters of patients here.  Whether you c
 
 ### K-Means
 
-[TODO: Describe what K-Means is and what we will do]
+Now that our data has been tidy'd and is ready to be subjected to a few unsupervised learning techniques, we'll first start with a k-means approach. The k-means algorithm works via the following steps:  
 
-#### Determine # Segments
++ First, a certain number of clusters (k) is designated, and the algorithm obtains all observations and creates k random unnamed/new observations that serve as initial "centroids".  
+
++ These centroids are then used to compute the Euclidean distance between the centroid and the surrounding observations. For each observation, the nearest centroid is used to classify the observation, and will essentially assign a category.  
+
++ Then, the algorithm takes the average of all of the points in each category and recomputes the centroid based on this average. The algorithm then runs again using these new centroids.  
+
++ The process ends when there is no change in centroid position between one run of the clustering algorithm and another.  
+
+For our dataset, we'll essentially subject our k-means algorithm directly to our dataset. However, for a k-means approach, you'll first have to assign the number of final clusters you'd like to classify your data into. This can be a difficult task, thus we will outline this process below.
+
+#### Determine Segments
 
 We'll need to identify the appropriate number for `k`. `k` represents the number of clusters we will group rows into.  Three common techniques are: Elbow, Silhouette, Gap statistic, and NBClust().  For simplicity, we will uyse the Elbow approach.  [TODO: Insert disscussion]  
 
@@ -327,14 +458,48 @@ summary(km_res)
 sil <- silhouette(km_res$cluster, dist(df_dummy))
 fviz_silhouette(sil)
 
+```
+
+After running our `kmeans()` function, we can take a look at the final 5 clusters that were created by our algorithm:  
+
+```{r}
 fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
 ```
 
 [TODO: Discussion of model results]
 
+To provide some context around the clusters that were generated by our algorithm, we decided to isolate the 5 clusters we created, and subjected them to our `df_dummy` dataset, grouping and computing the means for each one of our features, to see if any noticeable trends start to arise. 
+```{r}
+k_means_analysis_df <- df_dummy %>%
+  mutate(Cluster = km_res$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+```
+
+```{r}
+k_means_analysis_df <- k_means_analysis_df %>% select('Cluster', 'Age', 'Sex.1', 'X.ADHD.Total.', 'X.MD.TOTAL.', 'Alcohol.0', 'Alcohol.3', 'THC.0', 'THC.3', 'X.Court.order.1', 'X.Hx.of.Violence.1', 'Suicide.1')
+
+kable(k_means_analysis_df) %>% 
+  kable_styling(bootstrap_options = "responsive")
+```
+From above, we isolated 12 columns that were of particular interest to us. These seemed to show some sort of trend in computed means per group. Here are some explanations and interpretations of how our k-means cluster grouped the respondents:  
+
++ **Cluster #1**: It looks like the 34 individuals that comprise of cluster number 1 are on the younger end, given that the average age of 26 is below the 25th percentile of our overall dataset. Additionally, it appears that this group had a high average total for the ADHD questions, as well as the highest total for the MD questions. Additionally, they had the highest average for responding that they had a dependence on alcohol, and also the highest average that had attempted to commit suicide and a court order.  
+
++ **Cluster #2**: The 18 individuals in this cluster make up the youngest average age out of the rest of the four clusters. The individuals in this group also comprised of the largest male majority, lowest average ADHD total, lowest average dependence on alcohol, highest average dependence on THC, and second highest average in having a court order.  
+
++ **Cluster #3**: The 43 individuals in this cluster make up our largest group, with the oldest average age of around 48 years. Additionally, it has a majority of male respondents, it had the second highest average dependence on alcohol, and second lowest average dependence on THC (most responded as "do not use"). This group seems to fall outside of many of the substance abuse tendencies, has the lowest average responding that they had a history of violence, as well as the lowest average of having attempted suicide.  
+
++ **Cluster #4**: The 39 individuals in this cluster make up the group with the second oldest average age. It has a majority of female respondents, the highest average total for the ADHD questions, the second highest average total for the MD questions, the lowest average dependence on THC (most responded as "do not use"), and the second highest average for those responding that they have attempted suicide.  
+
++ **Cluster #5**:  The final cluster of 41 individuals make up the group with an average age that sits right in between our other four clusters. Additionally, this group falls in between other clusters on most other averages, except nobody in this group had responded that they have a court order, and they had the highest average for responding with a history of violence.  
+
 ### Hierarchical Clustering
 
 [TODO: Describe what HC is and what we will do]
+
+
+
 
 #### Model
 
