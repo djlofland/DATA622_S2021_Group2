@@ -61,7 +61,7 @@ library(broom)
 library(cluster)
 library(factoextra)
 library(NbClust)
-
+library(dendextend)
 ```
 
 
@@ -141,6 +141,7 @@ As we saw in our data summary, we have some missing values.  Lets explore this a
 # Use nanair package to plot missing value patterns
 gg_miss_upset(df)
 ```
+
 The missing data only appears in a few of our features: `Suicide`, `Abuse`, `Non-subst Dx`, `Subst Dx`, and `Psych meds.`.
 
 For factors, doing traditional imputing approaches can be problematic.  While in most cases, missing data might be inferred as 0, we don't know if there were problems with administering, coding the survey, and/or patients didn't want to answer and skipped questions (when some of these may have applied).  So, rather than dropping the rows or imputing, we will instead create new factor values 'NA' for each indicating that we lack that information. 
@@ -461,7 +462,17 @@ fviz_silhouette(sil)
 ```
 
 After running our `kmeans()` function, we can take a look at the final 5 clusters that were created by our algorithm:  
+As a reminder, the interpretation of the silhouette coefficient is as follows:
 
+1, >0, means that the observation is well grouped. The closer the coefficient is to 1, the better the observation is grouped.
+
+2, <0, means that the observation has been placed in the wrong cluster.
+
+3, =0, means that the observation is between 5 clusters.
+
+The silhouette plot above and the average silhouette coefficient help to determine whether your clustering is good or not. If a large majority of the silhouette coefficients are positive, it indicates that the observations are placed in the correct group. This silhouette plot can therefore be used in the choice of the optimal number of classes.
+
+It is also possible to plot clusters by using the fviz_cluster() function. Note that a principal component analysis is performed to represent the variables in a 5 dimensions plane.
 ```{r}
 fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
 ```
@@ -496,10 +507,70 @@ From above, we isolated 12 columns that were of particular interest to us. These
 
 ### Hierarchical Clustering
 
-[TODO: Describe what HC is and what we will do]
+Hierarchical clustering, also known as hierarchical cluster analysis, is an algorithm that groups similar objects into groups called clusters. The endpoint is a set of clusters, where each cluster is distinct from each other cluster, and the objects within each cluster are broadly similar to each other.
+
+There are 5 main methods to measure the distance between clusters, referred as linkage methods:
+
+Single linkage: computes the minimum distance between clusters before merging them.
+Complete linkage: computes the maximum distance between clusters before merging them.
+Average linkage: computes the average distance between clusters before merging them.
+Centroid linkage: calculates centroids for both clusters, then computes the distance between the two before merging them.
+Ward’s (minimum variance) criterion: minimizes the total within-cluster variance and find the pair of clusters that leads to minimum increase in total within-cluster variance after merging.
+
+We can apply the hierarchical clustering with the complete linkage criterion thanks to the hclust() function with the argument method = "complete" and method = "ward.D2":
+
+```{r}
+d <- dist(df_dummy, method = "euclidean")
+hclust1 <- hclust(d, method = "complete")
+```
+
+```{r}
+plot(hclust1)
+```
+
+```{r}
+plot(hclust1)
+rect.hclust(hclust1,
+  k = 5, # k is used to specify the number of clusters
+  border = "blue"
+)
+```
+
+```{r}
+hclust2 <- hclust(d, method = "ward.D2")
+```
+
+```{r}
+plot(hclust2)
+```
+
+```{r}
+plot(hclust2)
+rect.hclust(hclust2,
+  k = 5, # k is used to specify the number of clusters
+  border = "blue"
+)
+```
+
+We compare hierarchical clustering with complete linkage versus Ward’s method. The function tanglegram plots two dendrograms, side by side, with their labels connected by lines.
+```{r}
+dend1 <- as.dendrogram (hclust1)
+dend2 <- as.dendrogram (hclust2)
+```
+
+```{r}
+dend_list <- dendlist(dend1, dend2)
+
+tanglegram(dend1, dend2,
+  highlight_distinct_edges = FALSE, # Turn-off dashed lines
+  common_subtrees_color_lines = FALSE, # Turn-off line colors
+  common_subtrees_color_branches = TRUE, # Color common branches 
+  main = paste("entanglement =", round(entanglement(dend_list), 2))
+  )
+```
 
 
-
+[TODO: Explanation of the result]
 
 #### Model
 
@@ -567,14 +638,4 @@ plot(cumsum(prop_varex), xlab = "Principal Component",
 ***
 
 Assume you are modeling whether a patient attempted suicide (column AX). Please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted information from the variables. This can be a really fun modeling task! *(80)*
-
-
-
-
-
-
-
-
-
-
 
