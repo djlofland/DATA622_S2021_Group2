@@ -664,15 +664,10 @@ summary(df.svm)
 
 ```{r}
 
-#svm.tune <- tune(svm, Suicide ~., data = df_train,
-                 #ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
-                 #kernel=c("linear", "polynomial", "radial"),
-                 #gamma=c(0.5,1,2,3,4)))
-
-
-tune=tune(svm,Suicide ~.,data =df_train,kernel="radial" ,ranges = list(cost=c(0.001,0.01,0.1,1,5,10,100)))
-
-
+svm.tune <- tune(e1071::svm, Suicide ~., data = df_train,
+                 ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
+                 kernel=c("linear", "polynomial", "radial"),
+                 gamma=c(0.5,1,2,3,4)))
 
 
 bestmod=svm.tune$best.model
