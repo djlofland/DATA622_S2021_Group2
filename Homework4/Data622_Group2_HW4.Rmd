@@ -671,7 +671,6 @@ svm.tune <- tune(e1071::svm, Suicide ~., data = df_train,
 
 
 bestmod=svm.tune$best.model
-summary(svm.tune)
 ```
 
 
