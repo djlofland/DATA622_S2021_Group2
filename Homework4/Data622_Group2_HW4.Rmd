@@ -62,6 +62,8 @@ library(cluster)
 library(factoextra)
 library(NbClust)
 library(dendextend)
+
+library(e1071)
 ```
 
 
@@ -638,4 +640,71 @@ plot(cumsum(prop_varex), xlab = "Principal Component",
 ***
 
 Assume you are modeling whether a patient attempted suicide (column AX). Please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted information from the variables. This can be a really fun modeling task! *(80)*
+
+
+```{r}
+df2 <- subset(df, Suicide != "unknown")
+df2$Suicide<-droplevels(df2)$Suicide
+```
+
+
+```{r}
+
+index<-createDataPartition(df2$Suicide,p=0.8,list = FALSE)
+df_train<-df2[index,]
+df_test<-df2[-index,]
+```
+
+
+
+```{r}
+df.svm=svm(Suicide~.,data=df_train, kernel="radial")
+summary(df.svm)
+```
+
+```{r}
+
+#svm.tune <- tune(svm, Suicide ~., data = df_train,
+                 #ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
+                 #kernel=c("linear", "polynomial", "radial"),
+                 #gamma=c(0.5,1,2,3,4)))
+
+
+tune=tune(svm,Suicide ~.,data =df_train,kernel="radial" ,ranges = list(cost=c(0.001,0.01,0.1,1,5,10,100)))
+
+
+
+
+bestmod=svm.tune$best.model
+summary(svm.tune)
+```
+
+
+
+```{r}
+summary(svm.tune)
+bestmod=svm.tune$best.model
+bestmod
+```
+
+
+```{r}
+svmPre<-predict(bestmod,df_test)
+svm<-confusionMatrix(svmPre,df_test$Suicide)
+svm
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
