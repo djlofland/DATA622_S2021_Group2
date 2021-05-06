@@ -152,12 +152,17 @@ We also see that for each respondent, we have their initial.  This won't be usef
 
 ```{r}
 # Replace missing with 'unknown' so we have a factor value for each
-df <- df %>% 
-  na_replace('unknown')
+#df <- df %>% 
+  #na_replace('unknown')
 
 # Drop Initial column
-df <- df %>% 
-  dplyr::select(-Initial)
+#df <- df %>% 
+  #dplyr::select(-Initial)
+
+## Use kNN to impute the data
+df<-kNN(df)%>%
+  select(Age:'Psych meds.')
+
 ```
 
 Looking at our dataset, we see that missing values are no longer an issue; however, we still have some additional cleanup to perform on our dataset below before we proceed with kNN modeling.   
@@ -178,26 +183,25 @@ df$Age                  <- as.integer(df$Age)
 # Misc columns (note: some columns are ordinal, others are not)
 df$Sex                  <- factor(df$Sex)
 df$Race                 <- factor(df$Race)
-df$Alcohol              <- factor(df$Alcohol, levels=c("unknown", 0, 1, 2, 3))
-df$THC                  <- factor(df$THC, levels=c('unknown', 0, 1, 2, 3))
-df$Cocaine              <- factor(df$Cocaine, levels=c('unknown', 0, 1, 2, 3))
-df$Stimulants           <- factor(df$Stimulants, levels=c('unknown', 0, 1, 2, 3))
-df$`Sedative-hypnotics` <- factor(df$`Sedative-hypnotics`, levels=c('unknown', 0, 1, 2, 3))
-df$Opioids              <- factor(df$Opioids, levels=c('unknown', 0, 1, 2, 3))
+df$Alcohol              <- factor(df$Alcohol)
+df$THC                  <- factor(df$THC)
+df$Cocaine              <- factor(df$Cocaine)
+df$Stimulants           <- factor(df$Stimulants)
+df$`Sedative-hypnotics` <- factor(df$`Sedative-hypnotics`)
+df$Opioids              <- factor(df$Opioids)
 
-df$Education            <- factor(df$Education, levels=c('unknown', 0, 1, 2, 3, 4, 5, 6, 7, 8, 
-                                                         9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20))
+df$Education            <- factor(df$Education)
 
-df$`Court order`        <- factor(df$`Court order`, levels=c('unknown', 0, 1))
-df$`Hx of Violence`     <- factor(df$`Hx of Violence`, levels=c('unknown', 0, 1))
-df$`Disorderly Conduct` <- factor(df$`Disorderly Conduct`, levels=c('unknown', 0, 1))
-df$Suicide              <- factor(df$Suicide, levels=c('unknown', 0, 1))
+df$`Court order`        <- factor(df$`Court order`)
+df$`Hx of Violence`     <- factor(df$`Hx of Violence`)
+df$`Disorderly Conduct` <- factor(df$`Disorderly Conduct`)
+df$Suicide              <- factor(df$Suicide)
 
-df$Abuse                <- factor(df$Abuse, levels=c('unknown', 0, 1, 2, 3, 4,5, 6, 7))
+df$Abuse                <- factor(df$Abuse)
 
-df$`Non-subst Dx`       <- factor(df$`Non-subst Dx`, levels=c('unknown', 0, 1, 2))
-df$`Subst Dx`           <- factor(df$`Subst Dx`, levels = c('unknown', 0, 1, 2, 3))
-df$`Psych meds.`        <- factor(df$`Psych meds.`, levels=c('unknown', 0, 1, 2))
+df$`Non-subst Dx`       <- factor(df$`Non-subst Dx`)
+df$`Subst Dx`           <- factor(df$`Subst Dx`)
+df$`Psych meds.`        <- factor(df$`Psych meds.`)
 
 # Quick trick to fix all columns matching name pattern
 df <- df %>%
@@ -635,7 +639,7 @@ plot(cumsum(prop_varex), xlab = "Principal Component",
 
 ***
 
-## **Part 3: Cluster Patients**
+## **Part 3: Support Vector Machine**
 
 ***
 
@@ -643,8 +647,8 @@ Assume you are modeling whether a patient attempted suicide (column AX). Please 
 
 
 ```{r}
-df2 <- subset(df, Suicide != "unknown")
-df2$Suicide<-droplevels(df2)$Suicide
+library(randomForest())
+df2<-data.frame(df)
 ```
 
 
@@ -656,19 +660,41 @@ df_test<-df2[-index,]
 ```
 
 
+```{r}
+# Use random Forest to select features
+rf<-randomForest(Suicide~.,data=df_train)
+
+imp<-data.frame(varImp(rf))
+imp
+varImpPlot(rf,type=2)
+```
+
+
 
 ```{r}
-df.svm=svm(Suicide~.,data=df_train, kernel="radial")
+set.seed(123)
+# select top 10 variables from Importance Table
+df.svm=svm(Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+ADHD.Total+ADHD.Q9+ADHD.Q2,data=df_train, kernel="radial")
 summary(df.svm)
 ```
 
-```{r}
 
-svm.tune <- tune(e1071::svm, Suicide ~., data = df_train,
+
+```{r}
+svmPre1<-predict(df.svm,df_test)
+svm1<-confusionMatrix(svmPre1,df_test$Suicide)
+svm1
+```
+
+
+Tune the Model:
+```{r}
+set.seed(200)
+svm.tune <- tune(e1071::svm, Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+ADHD.Total+ADHD.Q9+ADHD.Q2, 
+                 data = df_train,
                  ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
                  kernel=c("linear", "polynomial", "radial"),
                  gamma=c(0.5,1,2,3,4)))
-
 
 bestmod=svm.tune$best.model
 ```
@@ -683,9 +709,9 @@ bestmod
 
 
 ```{r}
-svmPre<-predict(bestmod,df_test)
-svm<-confusionMatrix(svmPre,df_test$Suicide)
-svm
+svmPre2<-predict(bestmod,df_test)
+svm2<-confusionMatrix(svmPre2,df_test$Suicide)
+svm2
 ```
 
 
