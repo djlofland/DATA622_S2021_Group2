@@ -654,15 +654,38 @@ From our above visualization, we can see a few distinct trends:
 
 Let’s explore using Principal Component Analysis on this dataset.  You will note that there are different types of questions in the dataset: **columns E-W**: ADHD self-report; **column X–AM**: mood disorders questionnaire, **column AN-AS**: Individual Substance Misuse; etc. Please reason through your work as you decide on which sets of variables you want to use to conduct Principal Component Analysis. *(60)*
 
+Principal Component Analysis (PCA) is an unsupervised, non-parametric statistical technique primarily used for dimensionality reduction in machine learning. It is a useful technique for exploratory data analysis, allowing us to better visualize the variation present in a dataset with many variables.
 ```{r}
 df_dummy.pca <- prcomp(df_dummy, center = TRUE,scale. = TRUE)
 
 summary(df_dummy.pca)
 ```
 
+
+
+The scale = 0 argument to biplot ensures that the arrows are scaled to represent the loadings; other values for scale give slightly different biplots with different interpretations.
+
 ```{r fig.height=8, fig.width=12}
 biplot(df_dummy.pca, scale = 0)
 ```
+
+
+Visualize eigenvalues (scree plot). Show the percentage of variances explained by each principal component.
+```{r}
+fviz_eig(df_dummy.pca)
+```
+
+Graph of variables. Positive correlated variables point to the same side of the plot. Negative correlated variables point to opposite sides of the graph.
+```{r}
+fviz_pca_var(df_dummy.pca,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+
+
+
 ```{r}
 #compute standard deviation of each principal component
 std_dev <- df_dummy.pca$sdev
@@ -670,11 +693,16 @@ std_dev <- df_dummy.pca$sdev
 #compute variance
 pr_var <- std_dev^2
 
-#check variance of first 10 components
-pr_var[1:10]
-prop_varex <- pr_var/sum(pr_var)
-prop_varex[1:10]
 
+prop_varex <- pr_var/sum(pr_var)
+
+round(prop_varex[1:10], 2)
+```
+The first principal component in our example therefore explains 12% of the variability, and the second principal component explains 6%. Together, the first ten principal components explain 39% of the variability. And we proceed to plot the PVE and cumulative PVE to provide us our scree plots as we did earlier.
+
+
+
+```{r}
 #scree plot
 plot(prop_varex, xlab = "Principal Component",
              ylab = "Proportion of Variance Explained",
@@ -696,85 +724,68 @@ plot(cumsum(prop_varex), xlab = "Principal Component",
 Assume you are modeling whether a patient attempted suicide (column AX). Please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted information from the variables. This can be a really fun modeling task! *(80)*
 
 
+
+To test the accuracy , we first separate the data into training and test dataset.
 ```{r}
-library(randomForest())
 df2<-data.frame(df)
-```
-
-
-```{r}
-
 index<-createDataPartition(df2$Suicide,p=0.8,list = FALSE)
 df_train<-df2[index,]
 df_test<-df2[-index,]
+
 ```
 
+
+The data has 53 variables and we can use random Forests to reduce the number of variables.Random Forests are often used for feature selection in a data science workflow. The tree-based strategies used by random forests naturally ranks by how well they improve the purity of the node. This mean decrease in impurity over all trees (called Gini impurity)and we can use it to determine the final importance of the variable.
 
 ```{r}
 # Use random Forest to select features
 rf<-randomForest(Suicide~.,data=df_train)
 
-imp<-data.frame(varImp(rf))
-imp
+importance(rf)
 varImpPlot(rf,type=2)
 ```
+Variable Abuse has the highest MeanDecrease Gini, 4.7517859 and it is the most important variables. We plan to select the top 10 most important variables to fit our SVM model. The variables we choose are Abuse,Education,ADHD.Q1,Alcohol,ADHD.Q16,
+ADHD.Total,ADHD.Q18,ADHD.Total,ADHD.Q9 and ADHD.Q2.
 
 
 
 ```{r}
 set.seed(123)
 # select top 10 variables from Importance Table
-df.svm=svm(Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+ADHD.Total+ADHD.Q9+ADHD.Q2,data=df_train, kernel="radial")
+df.svm=svm(Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+ADHD.Total+ADHD.Q9+ADHD.Q2,data=df_train, kernel="radial", cost = 10, scale = FALSE)
 summary(df.svm)
 ```
+We use Radial kernel in our support vector classification and the number of support vectors is 90.
 
-
-
+Then we can test the accurancy using our test data.
 ```{r}
 svmPre1<-predict(df.svm,df_test)
 svm1<-confusionMatrix(svmPre1,df_test$Suicide)
 svm1
 ```
 
+The accuracy is 0.6471.  Considering we only use 10 variables, the test result is not bad. We can tune the Model by trying different parameters. 
 
-Tune the Model:
+
 ```{r}
-set.seed(200)
 svm.tune <- tune(e1071::svm, Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+ADHD.Total+ADHD.Q9+ADHD.Q2, 
                  data = df_train,
                  ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
                  kernel=c("linear", "polynomial", "radial"),
                  gamma=c(0.5,1,2,3,4)))
 
-bestmod=svm.tune$best.model
-```
 
-
-
-```{r}
 summary(svm.tune)
 bestmod=svm.tune$best.model
 bestmod
 ```
+Tune() perform ten-fold cross-validation by default. To test the best kernel, we use linear, polynomial and radial in the tuning model and found out that the best model use Linear kernel with cost of 5. From the table, we can see that the lowest error rate is 0.2490476.
 
+We can use confusion Matrix to check the table and accuracy. 
 
 ```{r}
 svmPre2<-predict(bestmod,df_test)
 svm2<-confusionMatrix(svmPre2,df_test$Suicide)
 svm2
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+After we tune the model, the accuracy rate increase to 0.7059, which is much better than the previous one without turning. 
