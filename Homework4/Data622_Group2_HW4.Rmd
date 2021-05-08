@@ -1,6 +1,6 @@
 ---
 title: "Data 622 - Homework #4 (Group 2)"
-author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Grace Han, Zach Alexander"
+author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Zach Alexander"
 date: "5/7/2021"
 output: 
   html_document:
@@ -130,9 +130,10 @@ After reading in the dataframe and identifying the data dictionary that explains
 # Show df summary deatils
 skim(df)
 ```
+
 We can see above that the dataset consists of 175 observations and 54 different features. A few of the features have quite a few missing values, including the `Psych meds.` feature (with 118 missing values), as well as `Subst Dx` and `Non-subst Dx`, which have 23 and 22 missing values, respectively. These questions, when looking at the data summary above, correspond to medication questions that are specific to a particular population -- for instance, when sampling the general population for a survey, likely a smaller percentage (and not a majority) will be on psychiatric medication, or be taking medication for substance use/non-substance use related causes. Therefore, many of these missing values make sense, but will be important to keep in mind when we start our clustering techniques.  
 
-Another interesting component of the `skim()` function is to be able to take a quick look at the distribution of responses for each feature. From the `Education` distribution, we can see that the median education level was a high school diploma (12th grade). Also, there seemed to be slightly more males than females that responded to the survey, and the median age was around 42 years. Additionally, we can see that a majority of respondents to many of the substance use questions, such as `Cocaine`, `THC` and `Alcohol` tended to answer as either "no use", or "dependence", with not much gray area in between. Finally, a large majority of respondents self-identified their race as White.  
+Another interesting component of the `skim()` function is to be able to take a quick look at the distribution of responses for each feature. From the `Education` distribution, we can see that the median education level was a high school diploma (12th grade). Also, there seemed to be slightly more males than females that responded to the survey, and the median age was around 42 years. Additionally, we can see that a majority of respondents to many of the substance-use questions, such as `Cocaine`, `THC` and `Alcohol` tended to answer as either "no use", or "dependence", with not much gray area in between. Finally, a large majority of respondents self-identified their race as White.  
 
 
 ### Missing Values
@@ -146,7 +147,7 @@ gg_miss_upset(df)
 
 The missing data only appears in a few of our features: `Suicide`, `Abuse`, `Non-subst Dx`, `Subst Dx`, and `Psych meds.`.
 
-We can use kNN imputation to help replace many of the missing values. With the KNN method, a categorical missing value is imputed by looking at other records with similar features. Once k similar records are found, they are used to infer the missing value. 
+We can use kNN imputation to help replace many of the missing values. With the KNN method, a categorical missing value is imputed by looking at other records with similar features. Once k similar records are found, they are used to infer the missing value. Note that imputing can inherently introduce bias and there is a trade-off between loosing information versus bias when trying to fill in holes.  
 
 We also see that for each respondent, we have their initial.  This won't be useful for our purposes (note there are also duplicates where multiple people had the same initials).
 
@@ -355,6 +356,8 @@ df_dummy <- df_dummy[, -nzv]
 ```{r}
 # z-score scale continuous features
 df[, c("Age")] <- scale(df[, c("Age")])
+
+df_dummy[, c("Age")] <- scale(df_dummy[, c("Age")])
 ```
 
 Our data set is ready for our unsupervised models.  
@@ -395,7 +398,7 @@ We'll need to identify the appropriate number for `k`. `k` represents the number
 ```{r}
 # Elbow method
 fviz_nbclust(df_dummy, kmeans, method = "wss") +
-  geom_vline(xintercept = 4, linetype = 2) + # add line for better visualization
+  geom_vline(xintercept = 5, linetype = 2) + # add line for better visualization
   labs(subtitle = "Elbow method") # add subtitle
 ```
 
@@ -417,20 +420,22 @@ fviz_silhouette(sil)
 After running our `kmeans()` function, we can take a look at the final 5 clusters that were created by our algorithm:  
 As a reminder, the interpretation of the silhouette coefficient is as follows:
 
-1, >0, means that the observation is well grouped. The closer the coefficient is to 1, the better the observation is grouped.
+* $> 0$, means that the observation is well grouped. The closer the coefficient is to 1, the better the observation is grouped.
 
-2, <0, means that the observation has been placed in the wrong cluster.
+* $< 0$, means that the observation has been placed in the wrong cluster.
 
-3, =0, means that the observation is between 5 clusters.
+* $= 0$, means that the observation is between 5 clusters.
 
 The silhouette plot above and the average silhouette coefficient help to determine whether your clustering is good or not. If a large majority of the silhouette coefficients are positive, it indicates that the observations are placed in the correct group. This silhouette plot can therefore be used in the choice of the optimal number of classes.
 
 It is also possible to plot clusters by using the fviz_cluster() function. Note that a principal component analysis is performed to represent the variables in a 5 dimensions plane.
+
 ```{r}
 fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
 ```
 
 To provide some context around the clusters that were generated by our algorithm, we decided to isolate the 5 clusters we created, and subjected them to our `df_dummy` dataset, grouping and computing the means for each one of our features, to see if any noticeable trends start to arise. 
+
 ```{r}
 k_means_analysis_df <- df_dummy %>%
   mutate(Cluster = km_res$cluster) %>%
@@ -501,6 +506,7 @@ rect.hclust(hclust2,
 ```
 
 We compare hierarchical clustering with complete linkage versus Ward’s method. The function tanglegram plots two dendrograms, side by side, with their labels connected by lines.
+
 ```{r}
 dend1 <- as.dendrogram (hclust1)
 dend2 <- as.dendrogram (hclust2)
@@ -516,16 +522,15 @@ tanglegram(dend1, dend2,
   main = paste("entanglement =", round(entanglement(dend_list), 2))
   )
 ```
-\br
 
-As we can see above, the entanglement value of 0.94 is very close to 1, meaning that there isn't a lot of alignment between the two dendrograms. Additionally, when we use the `cor_cophenetic()` and `cor_bakers_gamma()` functions, which measure the Cophenetic and Baker correlation coefficient's respectively, we can see that both of these values fall between 0.6 and 0.7. This indicates that there is some correlation between the two dendrograms, but they aren't *very* correlated with one another.
+As we can see above, the entanglement value of 0.31 is very close closer to `0`, meaning that there is alignment between the two dendrograms. Additionally, when we use the `cor_cophenetic()` and `cor_bakers_gamma()` functions, which measure the Cophenetic and Baker correlation coefficient's respectively, we can see that both of these values fall ~0.814. This indicates that there is reasonable correlation between the two dendrograms.
 
 ```{r}
 paste0('Cophenetic correlation coefficient: ', cor_cophenetic(dend_list))
 paste0('Baker correlation coefficient: ', cor_bakers_gamma(dend_list))
 ```
 
-Given our hierarchical clustering techniques, we decided to try and visualize characteristics across each of our five clusters for our complete linkage HC model. To do this, we decided to create a heatmap which shows the percent of each factor level (i.e. every value of 1) in the absolute count of cluster members, to determine which factors seemed to be found the most among members of each cluster.
+Given our hierarchical clustering techniques, we visualized characteristics across each of our five clusters for our complete linkage HC model. This heatmap shows the percent of each factor level (i.e. every value of 1) in the absolute count of cluster members.
 
 ```{r, fig.height=20, fig.width=10}
 require(reshape2)
@@ -542,14 +547,9 @@ df.long.q <- df.long %>%
   mutate(count = n_distinct(rownum)) %>%
   distinct(clust.num, variable, value, count)
 
-#heatmap.c will be suitable in case you want to go for absolute counts - but it doesn't tell much to my taste
 heatmap.c <- ggplot(df.long.q, aes(x = clust.num, y = variable, ordered = T)) +
-
   geom_tile(aes(fill = count))+
   scale_fill_gradient2(low = "darkslategray1", mid = "yellow", high = "turquoise4")
-
-
-# heatmap.c
 
 # calculating the percent of each factor level in the absolute count of cluster members
 df.long.p <- df.long.q %>%
@@ -569,11 +569,13 @@ geom_tile(aes(fill = perc), alpha = 0.85)+
   scale_fill_gradient2(low = "#E8D5B5", mid = "#7AB4C0", high = "#3E3496")
 heatmap.p
 ```
-[TODO: Zach Comment, I did my best with the interpretation of the viz above, but definitely feel free to edit as you see fit. We can also strip this down a bit based on variable importance!]
+
+
+### Identify "Profiles"
 
 From our above visualization, we can see a few distinct trends:  
 
-+ **Cluster 1**: we can see here that most members of in this cluster use cocaine, THC, and alcohol, have an education level at 11th grade (indicating they do not have a high school diploma), and take more than one psychotropic medication.  
++ **Cluster 1**: we can see here that most members of in this cluster use cocaine, THC, and alcohol, have an education level at 11th grade (indicating they do not have a high school diploma), and take more than one psychotropic medication.
 
 + **Cluster 2**: we can see here that most of the members of this cluster have an education level at the college level (13 or above), do not use alcohol, and agreed consistently with a response of "rarely" for many of the ADHD questions. With further metadata on the survey questions, we'd be able to identify even more trends based on these questions.    
 
@@ -582,17 +584,6 @@ From our above visualization, we can see a few distinct trends:
 + **Cluster 4**:  we can see here that most members of this cluster had experienced physical abuse, or a combination of physical and emotional abuse, answered "very often" on a lot of the ADHD questions, were users of THC and alcohol, and had a low education level (around 10th grade).  
 
 + **Cluster 5**: we can see here that most members of this cluster also answered "very often" on a lot of the ADHD questions and were less likely to use sedative hypnotics and psychiatric medications than other clusters.  
-
-
-### Identify "Profiles"
-
-[EDA of Segments - use variable importance to see which features (factor and value) were most important, then see if there are clear groupings]
-
-```{r}
-
-```
-
-
 
 ***
 
@@ -618,6 +609,7 @@ biplot(df_dummy.pca, scale = 0, cex=0.5)
 
 
 From the biplot above, it's difficult to tell much given the very large number of features. However, from our PCA analysis, we can also take a look at the eigenvalues that were generated by using a scree plot. The plot below shows the percentage of variance explained by each principal component.
+
 ```{r}
 fviz_eig(df_dummy.pca)
 ```
@@ -635,7 +627,6 @@ round(prop_varex[1:10], 2)
 ```
 
 The first principal component in our example therefore explains 12% of the variability, and the second principal component explains 6%. Together, the first ten principal components explain 39% of the variability. And we proceed to plot the PVE and cumulative PVE to provide us our scree plots as we did earlier.  
-
 
 ```{r}
 #scree plot
@@ -696,12 +687,8 @@ fviz_contrib(df_dummy.pca, choice = "var", axes = 2, top = 15)
 
 Similar to our biplot visualization and our cos2 values, we can confirm that variables such as `X.ADHD.Total` and `X.MD.Total`, as well as many other ADHD and MD questions contribute most to the variability explained in our dataset. This is important for us to take not of for future analysis, where we will be looking more closely at features that seem to provide more insight into clustering and classification. 
 
-
-
-[TODO: Zach note, I'm not very sure how to interpret this given the large number of variables here. If someone wants to take a look at it and provide some context that's great. However, this section may be good with our current visualizations and insight.]
-
-
 Graph of variables. Positive correlated variables point to the same side of the plot. Negative correlated variables point to opposite sides of the graph.
+
 ```{r, warning=FALSE}
 fviz_pca_var(df_dummy.pca,
              col.var = "contrib", # Color by contributions to the PC
@@ -709,8 +696,6 @@ fviz_pca_var(df_dummy.pca,
              repel = TRUE     # Avoid text overlapping
              )
 ```
-
-
 
 ***
 
@@ -720,19 +705,16 @@ fviz_pca_var(df_dummy.pca,
 
 Assume you are modeling whether a patient attempted suicide (column AX). Please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted information from the variables. This can be a really fun modeling task! *(80)*
 
-
-
 In order to run our SVM model correctly, our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.  
 
 ```{r}
 set.seed(123)
-df2<-data.frame(df)
-index<-createDataPartition(df2$Suicide,p=0.8,list = FALSE)
-df_train<-df2[index,]
-df_test<-df2[-index,]
+df2      <- data.frame(df)
+index    <- createDataPartition(df2$Suicide, p=0.8, list = FALSE)
+df_train <- df2[index,]
+df_test  <- df2[-index,]
 
 ```
-
 
 Since the data has 53 variables, and SVM works much better on lower dimensional datasets, we'll need to perform some sort of dimensionality reduction for feature selection. To do this, we decided to use a Random Forest algorithm to reduce the number of variables. Random Forests are often used for feature selection in a data science workflow. The tree-based strategies used by random forests naturally ranks how well they improve the purity of the node. This means, that if there is a decrease in impurity over all trees (called Gini impurity) then we can use it to determine the final importance of the variable.  
 
@@ -740,15 +722,14 @@ Therefore, we'll run our random forest algorithm and find the importance of each
 
 ```{r}
 # Use random Forest to select features
-rf<-randomForest(Suicide~.,data=df_train)
+rf<-randomForest(Suicide~., data=df_train)
 
 importance(rf)
 varImpPlot(rf,type=2)
 ```
-As we can see from the mean decrease Gini scores above, the variable `Abuse` has the highest mean decrease Gini value, at 6.386, which means that it has the highest variable importance. To fit our initial Support Vector Machines model, we plan to select the top 10 variables with the highest mean decrease Gini value. Therefore, the variables we choose for this initial SVM fit are Abuse, Education, ADHD.Q1, Alcohol, ADHD.Q16,
-ADHD.Total, ADHD.Q18, MD.TOTAL, ADHD.Q9 and ADHD.Q2.
 
-
+As we can see from the mean decrease Gini scores above, the variable `Abuse` has the highest mean decrease Gini value, at 6.386, which means that it has the highest variable importance. To fit our initial Support Vector Machines model, we plan to select the top 10 variables with the highest mean decrease Gini value. Therefore, the variables we choose for this initial SVM fit are `Abuse`, `Education`, `ADHD.Q1`, `Alcohol`, `ADHD.Q16`,
+`ADHD.Total`, `ADHD.Q18`, `MD.TOTAL`, `ADHD.Q9`, and `ADHD.Q2`.
 
 ```{r}
 # set.seed(123)
@@ -756,9 +737,11 @@ ADHD.Total, ADHD.Q18, MD.TOTAL, ADHD.Q9 and ADHD.Q2.
 # select top 10 variables from Importance Table
 df.svm=svm(Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+MD.TOTAL+ADHD.Q9+ADHD.Q2,data=df_train, kernel="radial", cost = 10, scale = FALSE)
 ```
+
 We use Radial kernel in our support vector classification and the number of support vectors is 90.
 
 Then we can test the accurancy using our test data.
+
 ```{r}
 svmPre1<-predict(df.svm,df_test)
 svm1<-confusionMatrix(svmPre1,df_test$Suicide)
@@ -766,7 +749,6 @@ svm1
 ```
 
 The accuracy is 0.7353.  Considering we only use 10 variables, the test result is not bad. We can tune the Model by trying different parameters. 
-
 
 ```{r}
 svm.tune <- tune(e1071::svm, Suicide~Abuse+Education+ADHD.Q1+Alcohol+ADHD.Q16+ADHD.Total+ADHD.Q18+MD.TOTAL+ADHD.Q9+ADHD.Q2, 
@@ -780,6 +762,7 @@ summary(svm.tune)
 bestmod=svm.tune$best.model
 bestmod
 ```
+
 The `tune()` function performs ten-fold cross-validation by default. To test the best kernel, we use linear, polynomial and radial in the tuning model and discovered that the best model uses a Linear kernel with a cost of 0.1. From the table, we can see that the lowest error rate is 0.2561905.
 
 We can use confusion Matrix to check the table and accuracy. 
@@ -789,8 +772,8 @@ svmPre2<-predict(bestmod,df_test)
 svm2<-confusionMatrix(svmPre2,df_test$Suicide)
 svm2
 ```
-It appears that the tuning of our initial SVM model improved the accuracy rate slightly to 0.7941, which is better than the previous one without tuning.  
 
+It appears that the tuning of our initial SVM model improved the accuracy rate slightly to 0.7941, which is better than the previous one without tuning.  
 
 [TO DO: (Zach comment) visualization of SVM here, it looks like we can only do this in two dimensions, so we'll have to pick some that seem important (i.e. Abuse, ADHD Total, etc.)]
 
@@ -808,6 +791,4 @@ library(e1071)
 # plot(bestmod, df_test, Abuse~Alcohol)
 ```
 
-
 [TODO: Final comments about our SVM model]
-
