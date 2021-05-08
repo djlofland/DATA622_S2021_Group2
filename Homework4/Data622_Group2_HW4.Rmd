@@ -146,18 +146,11 @@ gg_miss_upset(df)
 
 The missing data only appears in a few of our features: `Suicide`, `Abuse`, `Non-subst Dx`, `Subst Dx`, and `Psych meds.`.
 
-For factors, doing traditional imputing approaches can be problematic.  While in most cases, missing data might be inferred as 0, we don't know if there were problems with administering, coding the survey, and/or patients didn't want to answer and skipped questions (when some of these may have applied).  So, rather than dropping the rows or imputing, we will instead create new factor values 'NA' for each indicating that we lack that information. 
+We can use kNN imputation to help replace many of the missing values. With the KNN method, a categorical missing value is imputed by looking at other records with similar features. Once k similar records are found, they are used to infer the missing value. 
 
 We also see that for each respondent, we have their initial.  This won't be useful for our purposes (note there are also duplicates where multiple people had the same initials).
 
 ```{r}
-# Replace missing with 'unknown' so we have a factor value for each
-#df <- df %>% 
-  #na_replace('unknown')
-
-# Drop Initial column
-#df <- df %>% 
-  #dplyr::select(-Initial)
 
 ## Use kNN to impute the data
 df<-kNN(df)%>%
@@ -174,7 +167,7 @@ skim(df)
 
 #### Fix Datatypes
 
-We know that most of our features are either factors or ordinal factors.  Let's recode from `float` to `factor` to ensure our models don't incorrectly treat them as continuous.  Note that we'll leave `Age` as continuous even though it's technically an ordinal factor.  Also, for simplicity, `boolean` features (only 0 or 1) can be left as `integer`.  Looking ahead, factors are going to lead to a large number of features when we dummy code in preparation for modeling.  Dummy encoding leads to separate columns for each value.  High dimensions can lead to problems [TODO: insert discussion as to why here].  Fortunately, we don't have that many features and values, so we aren't starting with an excessive number of coumns.  That said, we will likely need to either reduce dimensions thorough PCA or different recoding approaches.  
+We know that most of our features are either factors or ordinal factors.  Let's recode from `float` to `factor` to ensure our models don't incorrectly treat them as continuous.  Note that we'll leave `Age` as continuous even though it's technically an ordinal factor.  Also, for simplicity, `boolean` features (only 0 or 1) can be left as `integer`.  Looking ahead, factors are going to lead to a large number of features when we dummy code in preparation for modeling.  Dummy encoding leads to separate columns for each value.  High dimensions can lead to problems.Fortunately, we don't have that many features and values, so we aren't starting with an excessive number of columns.  That said, we will likely need to either reduce dimensions thorough PCA or different recoding approaches.  
 
 ```{r}
 # We'll leave age as an integer
@@ -217,7 +210,6 @@ df$`MD TOTAL`           <- as.integer(df$`MD TOTAL`)
 
 For the continuous variables, we can examine the distributions, broken out by the target variable, `Sex`.  
 
-[TODO: This was quick and dirty placeholder ... Provide better visualizations, possibly by feature category (e.e.g, ADHD, MD, Substance Abuse columns, etc)]
 
 ```{r, fig.height = 6, fig.width = 6}
 
@@ -329,28 +321,6 @@ When looking at these figures broken out by our target variable `Sex`, we can se
 + Finally, when looking closely at the breakdown of responses to the Abuse question by sex, we can see that females overwhelmingly responded more frequently of having experienced some form of abuse, especially sexual abuse or a combination of sexual abuse with other forms of abuse. This was noticeably more frequent than the responses by their male counterparts.
 
 
-[TODO: Insert CorrPlot?  Since he have high dimensions, it may be problematic to visualize.  Maybe if we facet?  not sure]
-
-Placeholder (and useless) image inserted below.  
-
-```{r}
-library(ggcorrplot)
-model.matrix(~., data=df) %>% 
-  cor(use="pairwise.complete.obs") %>% 
-  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=2)
-```
-
-[Zach comment: I also tried to find a better way to visualize this, but came up empty. I did attempt a distance plot, but similar to yours above, there seem to be too many dimensions. My code below is pretty useless, but wanted to keep it in just in case it spurred other ideas.]
-
-```{r}
-library(factoextra)
-distance <- get_dist(df)
-fviz_dist(distance, gradient = list(low = "#00AFBB", mid = "white", high = "#FC4E07"))
-```
-
-
-
-[TODO: Describe any clear feature distributions or correlations patterns] 
 
 ### Dummy Columns
 
@@ -376,29 +346,6 @@ nzv <- nearZeroVar(df_dummy, saveMetrics= TRUE)
 # drop columns with zero variance
 nzv <- nearZeroVar(df_dummy)
 df_dummy <- df_dummy[, -nzv]
-```
-
-
-[TODO: Should we revisit correlations between factor variable?  Describe any clear feature distributions or correlations patterns] 
-
-### Feature Correlation
-
-[TODO: Show feature value correlations]
-
-[TODO: Discuss multicolineatity and determine if any features are candidates to be dropped up front.]
-
-### Class imbalance
-
-If values within factors are highly imbalanced, then we can get bias where specific values are better represented and thus algorithms have more datapoints to learn from.  
-
-[TODO: If any strong class imbalance of values with in a feature, we might need to bootstrap or resample to address]
-
-Next, we'll do some data tidying to get our data set ready for our KNN model. [TODO: Insert discussion on any features to remove, keep, data type changes, needs transforms, etc]  
-
-```{r}
-# remove any features
-#df <- df %>% 
-#  dplyr::select(-c())
 ```
 
 ### Transforms
@@ -443,7 +390,7 @@ For our dataset, we'll essentially subject our k-means algorithm directly to our
 
 #### Determine Segments
 
-We'll need to identify the appropriate number for `k`. `k` represents the number of clusters we will group rows into.  Three common techniques are: Elbow, Silhouette, Gap statistic, and NBClust().  For simplicity, we will uyse the Elbow approach.  [TODO: Insert disscussion]  
+We'll need to identify the appropriate number for `k`. `k` represents the number of clusters we will group rows into.  Three common techniques are: Elbow, Silhouette, Gap statistic, and NBClust().  For simplicity, we will uyse the Elbow approach.  
 
 ```{r}
 # Elbow method
@@ -482,6 +429,7 @@ It is also possible to plot clusters by using the fviz_cluster() function. Note 
 ```{r}
 fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
 ```
+
 To provide some context around the clusters that were generated by our algorithm, we decided to isolate the 5 clusters we created, and subjected them to our `df_dummy` dataset, grouping and computing the means for each one of our features, to see if any noticeable trends start to arise. 
 ```{r}
 k_means_analysis_df <- df_dummy %>%
