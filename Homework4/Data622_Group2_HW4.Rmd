@@ -777,5 +777,13 @@ svm2<-confusionMatrix(svmPre2,df_test$Suicide)
 svm2
 ```
 
+### Summary
+
 It appears that the tuning of our initial SVM model improved the accuracy rate slightly to 0.7941, which is better than the previous one without tuning.  
 
+To recap, Support Vector Machines are a subclass of supervised classifiers that attempt to partition a feature space into two or more groups. They achieve this by finding an optimal means of separating such groups based on their known class labels: 
+
+* In simpler cases the separation "boundary" is linear, leading to groups that are split up by lines (or planes) in high-dimensional spaces. 
+* In more complicated cases (where groups are not nicely separated by lines or planes), SVMs are able to carry out non-linear partitioning. This is achieved by means of a kernel function. 
+ 
+When comparing SVM and SVM with Tune, we can see that our SVM via PCA method seemed to perform better than SVM. That said SVM with Tune has the lowest training accuracy but the highest testing accuracy where both the testing and training accuracy are close. When using of kernels to separate non-linear data to try to produce the best accuracy, this may make them difficult (if not impossible) to interpret. So, in this scenario the Tune Method has better results with the least number of Principal Components and would be the model of selection as it is the most efficient.
