@@ -490,7 +490,6 @@ rect.hclust(hclust1,
 )
 ```
 
-
 Above, we can see the visual representation of our complete linkage hierarchical clustering dendrogram, including the 5 deliniated clusters in blue. Later, we can compare this to the Ward's method hierarchical clustering dendrogram that is presented below:  
 
 ```{r}
@@ -523,7 +522,7 @@ tanglegram(dend1, dend2,
   )
 ```
 
-As we can see above, the entanglement value of 0.31 is very close closer to `0`, meaning that there is alignment between the two dendrograms. Additionally, when we use the `cor_cophenetic()` and `cor_bakers_gamma()` functions, which measure the Cophenetic and Baker correlation coefficient's respectively, we can see that both of these values fall ~0.814. This indicates that there is reasonable correlation between the two dendrograms.
+As we can see above, the entanglement value of 0.31 is closer to `0`, meaning that there is alignment between the two dendrograms. Additionally, when we use the `cor_cophenetic()` and `cor_bakers_gamma()` functions, which measure the Cophenetic and Baker correlation coefficient's respectively, we can see that both of these values fall ~0.814. This indicates that there is reasonable correlation between the two dendrograms.
 
 ```{r}
 paste0('Cophenetic correlation coefficient: ', cor_cophenetic(dend_list))
@@ -542,6 +541,7 @@ df.cl <- cbind(df_dummy, clust.num)
 df.cl <- df.cl %>% mutate(rownum = row_number())
 df.long <- melt(data.frame(lapply(df.cl, as.character), stringsAsFactors=FALSE), 
                   id = c("rownum", "clust.num"), factorsAsStrings=T)
+
 df.long.q <- df.long %>%
   group_by(clust.num, variable, value) %>%
   mutate(count = n_distinct(rownum)) %>%
@@ -549,7 +549,7 @@ df.long.q <- df.long %>%
 
 heatmap.c <- ggplot(df.long.q, aes(x = clust.num, y = variable, ordered = T)) +
   geom_tile(aes(fill = count))+
-  scale_fill_gradient2(low = "darkslategray1", mid = "yellow", high = "turquoise4")
+  scale_fill_gradient2(low = "#ffffff", mid = "#E8D5B5", high = "#3E3496")
 
 # calculating the percent of each factor level in the absolute count of cluster members
 df.long.p <- df.long.q %>%
@@ -566,7 +566,7 @@ geom_tile(aes(fill = perc), alpha = 0.85)+
   geom_hline(yintercept = 13.5) +
   geom_hline(yintercept = 17.5) +
   geom_hline(yintercept = 21.5) +
-  scale_fill_gradient2(low = "#E8D5B5", mid = "#7AB4C0", high = "#3E3496")
+  scale_fill_gradient2(low = "#ffffff", mid = "#ddddff", high = "#3333ff")
 heatmap.p
 ```
 
@@ -705,6 +705,10 @@ fviz_pca_var(df_dummy.pca,
 
 Assume you are modeling whether a patient attempted suicide (column AX). Please use support vector machine to model this. You might want to consider reducing the number of variables or somehow use extracted information from the variables. This can be a really fun modeling task! *(80)*
 
+In machine learning, Support vector machine (SVM) are supervised learning models with associated learning algorithms that analyze data used for classification and regression analysis. It is mostly used in classification problems. In this algorithm, each data item is plotted as a point in n-dimensional space (where n is number of features), with the value of each feature being the value of a particular coordinate. Then, classification is performed by finding the hyper-plane that best differentiates the two classes. 
+
+In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces.
+
 In order to run our SVM model correctly, our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.  
 
 ```{r}
@@ -775,20 +779,3 @@ svm2
 
 It appears that the tuning of our initial SVM model improved the accuracy rate slightly to 0.7941, which is better than the previous one without tuning.  
 
-[TO DO: (Zach comment) visualization of SVM here, it looks like we can only do this in two dimensions, so we'll have to pick some that seem important (i.e. Abuse, ADHD Total, etc.)]
-
-To visualize this further, by:
-
-```{r}
-library(e1071)
-
-
-# data(cats, package="MASS")
-# m1 <- svm(Sex~., data = cats)
-# plot(m1, cats)
-
-# 
-# plot(bestmod, df_test, Abuse~Alcohol)
-```
-
-[TODO: Final comments about our SVM model]
