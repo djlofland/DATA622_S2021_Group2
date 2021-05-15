@@ -14,7 +14,7 @@ output:
     extra_dependencies: ["geometry", "multicol", "multirow", "xcolor"]
 ---
 
-Source Code: [https://github.com/djlofland/DATA622_S2021_Group2/tree/master/FinalProject](https://github.com/djlofland/DATA622_S2021_Group2/tree/master/Finalroject)
+Source Code: [https://github.com/djlofland/DATA622_S2021_Group2/tree/master/FinalProject](https://github.com/djlofland/DATA622_S2021_Group2/tree/master/FinalProject)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -56,7 +56,6 @@ library(cluster)
 library(NbClust)
 library(dendextend)
 library(e1071)
-
 library(readr)
 library(MASS)
 library(rpart)
@@ -66,6 +65,23 @@ library(Hmisc)
 library(randomForest)
 library(scales)
 library(cluster)
+library(DataExplorer)
+library(readr)
+library(ROCR)
+library(PerformanceAnalytics)
+library(gbm)
+library(ggcorrplot)
+library(caTools)
+library(naivebayes)
+library(ISLR)
+library(glmnet)
+library(Hmisc)
+library(funModeling)
+library(klaR)
+library(scales)
+library(factoextra)
+library(DataExplorer)
+library(ClustOfVar)
 ```
 
 
@@ -112,6 +128,7 @@ Given this context, we are now ready to load our data into R:
 
 ```{r}
 df <- read.csv('./data/heart.csv', header = TRUE)
+df <- df %>% rename(age = "ï..age")
 ```
 
 ### Exploratory Data Analysis  
@@ -121,45 +138,162 @@ First, we can check the shape of the dataset. It looks like there are 303 rows a
 ```{r}
 dim(df)
 ```
-
-
 ### Missing values in the dataset
 
-We can also check to see if there is missing data. I'll discuss this more in later sections, but it appears that there are a few missing values in the `ca` and `thal` attributes, which we'll impute later.  
+We can also check to see if there is missing data.
 
 ```{r, warning=FALSE}
-library(visdat)
-sum(is.na(df)==TRUE)
-
-vis_miss(df)
+plot_missing(df)
 ```
 
-As we can see above, there aren't any missing values across our dataset, which will make it easier for us as we start to prepare our dataset for machine learning analysis.  
+As we can see above, there aren't any missing values across our dataset, which will make it easier for us as we start to prepare our dataset for machine learning analysis. Next, we'll look at a full summary of our features, including rudimentary distributions of each of our continuous variables:    
 
 ```{r}
 skimr::skim(df)
 ```
 
+```{r}
+df_viz <- df %>% mutate(sex = if_else(sex == 1, "Male", "Female"),
+         fbs = if_else(fbs == 1, ">120", "<=120"),
+         exang = if_else(exang == 1, "Yes" ,"No"),
+         cp = if_else(cp == 1, "Atypical Angina",
+                      if_else(cp == 2, "Non-anginal pain", "Asymptomatic")),
+         restecg = if_else(restecg == 0, "Normal",
+                           if_else(restecg == 1, "Abnormality", "probable or definite")),
+         slope = as.factor(slope),
+         ca = as.factor(ca),
+         thal = as.factor(thal),
+         target = if_else(target == 1, "Has heart disease", "Does not have heart disease")
+         ) %>% 
+  mutate_if(is.character, as.factor) %>% 
+  dplyr::select(target, sex, fbs, exang, cp, restecg, slope, ca, thal, everything())
+```
+
+
+Interestingly, we can also see that there's a pretty even split between those that have a presence and absence of heart disease:  
+
+```{r, message=FALSE, warning=FALSE}
+# Bar plot for target (Heart disease) 
+ggplot(df_viz, aes(x=df_viz$target, fill=df_viz$target)) + 
+  geom_bar() +
+  xlab("Heart Disease") +
+  ylab("Count") +
+  ggtitle("Analysis of Presence and Absence of Heart Disease") +
+  scale_fill_discrete(name = "Heart Disease", labels = c("Absence", "Presence"))
+```
+```{r}
+prop.table(table(df_viz$target))
+```
+
+We can see that there is roughly a 50/50 split in this dataset of those that do have heart disease from those that do not have heart disease. This will come in handy later when we set up our machine learning analyses.  
+
+Additionally, when looking at the summary distributions, we can see that our patient population skews above 50 years, with an average age of individuals in this dataset at about 54 years old. The oldest individual is 77 years old, and the youngest is 29. We can take a look at the age frequency counts here:
+
+
+```{r}
+# Counting the frequency of the values of the age
+hist(df_viz$age,labels=TRUE,main="Histogram of Age",xlab="Age Class",ylab="Frequency",col="steelblue")
+```
+
+```{r}
+df_viz %>%
+  ggplot(aes(x=age,y=chol,size=chol, color=target))+
+  geom_point(alpha=0.7)+xlab("Age") +
+  ylab("Cholestoral")
+```
+Interestingly from the plot above, when we take a look at the relationship between a patient's age, cholesterol and whether or not they have heart disease, we can see that those with positive diagnoses tend to be clustered between the ages of 40 and 70 years and relatively high cholesterol levels.  
+
+We can explore this further by taking a look at these in percentages:  
+
+```{r}
+df %>% 
+  group_by(target) %>% 
+  summarise(mean=mean(trestbps))
+```
+
 
 ### Feature Plots
 
-For the continuous variables, we can examine the distributions, broken out by the target variable, `Sex`.  
+For the continuous variables, we can examine the distributions, broken out by the target variable.  
 
+```{r}
+cor_heart <- cor(df[,c(4,5,8,10,14)])
+cor_heart
+
+corrplot(cor_heart, method = "ellipse", type="upper",)
+ggcorrplot(cor_heart,lab = T)
+ggcorr(cor_heart, label = T, label_round = 2)
+```
+
+[TODO: More explanation of these corr plots]
 
 ### Dummy Columns
 
 We’ll need to dummy code our categorical variables.  This process will create new columns for each value and assign a 0 or 1.  Note that dummy encoding typically drops one value which becomes the baseline.  So if we have a categorical feature with five unique values, we will have four columns.  If all columns are 0, that represents the reference value.  This helps reduce the number of necessary columns.  With dummy columns in place, we need to remove our original variables from this dataset. 
 
-
-### Transforms
-
-`Age` is our only continuous variable.  We normalize our continuous features using a simple z-score standardization.  Although this may help our KNN model, we’ll have to be careful about interpretability later on!
-
 ```{r}
-# z-score scale continuous features
-df[, c("Age")] <- scale(df[, c("Age")])
-
-df_dummy[, c("Age")] <- scale(df_dummy[, c("Age")])
+# dummy encode our categorical features
+df_dummy <- dummyVars(~ 0 + ., drop2nd=TRUE, data = df_viz)
+df_dummy <- data.frame(predict(df_dummy, newdata = df_viz))
 ```
 
-Our data set is ready for our unsupervised models.  
+
+## Principle Component Analysis  
+
+[TODO: It looks like we'd be able to run PCA on this set of variables, so might be a good tactic if others are interested. I created a df_dummy dataset to hopefully help with this.]
+
+
+
+## Logistic Regression Analysis  
+
+[TODO: Not sure if we want to run a basic logistic regression on this, but could be a good start]
+
+
+## Splitting the Dataset into Training and Testing  
+
+```{r}
+set.seed(123)
+df2      <- data.frame(df)
+index    <- createDataPartition(df2$target, p=0.8, list = FALSE)
+df_train <- df2[index,]
+df_test  <- df2[-index,]
+```
+
+
+## Support Vector Machine (SVM) Analysis  
+
+[TODO: I started the SVM model, but ran into an error when making predicitions. Unfortunately I don't have time to diagnose right now, but wanted to keep it in there in case it's helpful]
+
+```{r}
+x <- subset(df_test, select = -target)
+y <- df_test$target
+df.svm=svm(x, y)
+print(df.svm)
+
+```
+
+
+## Random Forest Analysis
+
+[TODO: This may also be a good analysis to do with the dataset]
+
+
+## Kmeans Analysis  
+
+[TODO: This may also be a good analysis to do with this dataset]
+
+
+
+[Zach Note: just adding these in here since these were a few of the findings I discovered when running this data in python. We can take these out if they aren't helpful, but thought I'd leave them here in case others find similar trends or would like to expand on these.]
+
+## Conclusions  
+
+In the end, we worked through a fair bit of analysis on this heart disease dataset. From this, we've come up with a few interesting conclusions:
+
+Many of the attributes that were available in the Cleveland Heart Disease dataset, and the individuals in this dataset, matched many of the underlying factors that can lead to heart disease. For instance, many that did indeed have heart disease exhibited higher resting blood pressure, higher cholesterol, and were older, on average than those that did not have heart disease.
+
+Additionally, a large percentage of individuals that exhibited exercise-induced angina (chest pain) had heart disease (roughly 75% of the individuals in the dataset). This is something worth noting, as it may help physicians with diagnoses and helping to identify factors that could lead to this type of disease.
+
+It was also very interesting to run some machine learning algorithms on this dataset. Support Vector Machines (SVM) and Random Forest both provided pretty good classification outputs for predicting whether or not an individual has heart disease. Implementing more of these types of models in the future may be valuable to help physicians make proper decisions and can aid in diagnoses.
+
+Finally, the SVM model that I used for this dataset appeared to be slightly more effective when it was implemented on the test dataset. Although the Random Forest model did extraordinarily well on the training dataset (accuracy around 99%), when extending this model to the testing dataset it seemed to yield a higher number of false negatives and false positives thant he SVM model. If this model were to be used in real world scenarios, it could lead to catastrophic consequences if this were the only decision-making tool -- a relatively large percentage of patients could be wrongfully diagnosed with heart disease, and others would be wrongfully told that they do not have heart disease when they actually do.
