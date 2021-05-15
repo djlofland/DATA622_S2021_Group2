@@ -1,0 +1,165 @@
+---
+title: "Data 622 - Final Project (Group 2)"
+author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Zach Alexander"
+date: "5/7/2021"
+output: 
+  html_document:
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
+    toc_float: true
+    code_folding: hide
+  pdf_document:
+    extra_dependencies: ["geometry", "multicol", "multirow", "xcolor"]
+---
+
+Source Code: [https://github.com/djlofland/DATA622_S2021_Group2/tree/master/FinalProject](https://github.com/djlofland/DATA622_S2021_Group2/tree/master/Finalroject)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(readxl)           # Y Read Excel Data
+require(naniar)
+library(skimr)
+require(VIM)
+library(imputeTS)
+library(doParallel)   # Leverage multiple cores for ML
+require(MASS)
+require(gbm)
+require(xgboost)
+library(forecast)
+require(rpart)
+require(rpart.plot)
+require(randomForest)
+require(caret)
+require(pROC)
+library(tidyverse)        # TIDY packages
+library(dplyr)   # dplyr has to be loaded before tidyr
+library(tidyr)
+require(ggplot2)
+require(GGally)
+require(tidyr)
+require(Amelia)
+require(psych)
+require(class)
+require(tree)
+require(knitr)
+require(kableExtra)
+require(mice)
+library(corrplot)
+library(RColorBrewer)
+library(broom)
+library(cluster)
+library(NbClust)
+library(dendextend)
+library(e1071)
+
+library(readr)
+library(MASS)
+library(rpart)
+library(caTools)
+library(class)
+library(Hmisc)
+library(randomForest)
+library(scales)
+library(cluster)
+```
+
+
+***
+
+## **Load Data & EDA**
+
+***
+
+### Information about the dataset¶
+
+Before loading our dataset, and discussing our data exploration process, I'll quickly summarize the dataset that we'll be using for our machine learning analysis. The dataset is part of UCI's Cleveland Heart Disease data file, which consists of 303 individuals and various health-related metrics. The dataset we'll be using includes 14 attributes retrieved from patient tests and can be used for machine learning and classification analysis. Ultimately, these attributes will be examined to determine their effectiveness at predicting whether or not a particular patient has Heart Disease.  You can find more information about these 14 attributes below:
+
+**Data Dictionary:**  
+
+* `age`: age in years  
+* `sex`: sex (1 = male; 0 = female)  
+* `cp`: chest pain type  
+    + `Value 1: typical angina  
+    + Value 2: atypical angina  
+    + Value 3: non-anginal pain  
+    + Value 4: asymptomatic  
+* `trestbps`: resting blood pressure (in mm Hg on admission to the hospital)  
+* `chol`: serum cholestoral in mg/dl  
+* `fbs`: (fasting blood sugar > 120 mg/dl) (1 = true; 0 = false)  
+* `restecg`: resting electrocardiographic results  
+    + Value 0: normal  
+    + Value 1: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV)  
+    + Value 2: showing probable or definite left ventricular hypertrophy by Estes' criteria  
+* `thalach`: maximum heart rate achieved  
+* `exang`: exercise induced angina (1 = yes; 0 = no)  
+* `oldpeak`: ST depression induced by exercise relative to rest  
+* `slope`: the slope of the peak exercise ST segment  
+    + Value 1: upsloping  
+    + Value 2: flat  
+    + Value 3: downsloping  
+* `ca`: number of major vessels (0-3) colored by flourosopy  
+* `thal`: 3 = normal; 6 = fixed defect; 7 = reversable defect  
+* `target`: diagnosis of heart disease (angiographic disease status)  
+    + Value 0: < 50% diameter narrowing  
+    + Value 1: > 50% diameter narrowing  
+    
+Given this context, we are now ready to load our data into R:  
+
+```{r}
+df <- read.csv('./data/heart.csv', header = TRUE)
+```
+
+### Exploratory Data Analysis  
+
+First, we can check the shape of the dataset. It looks like there are 303 rows and 14 columns in our imported data.
+
+```{r}
+dim(df)
+```
+
+
+### Missing values in the dataset
+
+We can also check to see if there is missing data. I'll discuss this more in later sections, but it appears that there are a few missing values in the `ca` and `thal` attributes, which we'll impute later.  
+
+```{r, warning=FALSE}
+library(visdat)
+sum(is.na(df)==TRUE)
+
+vis_miss(df)
+```
+
+As we can see above, there aren't any missing values across our dataset, which will make it easier for us as we start to prepare our dataset for machine learning analysis.  
+
+```{r}
+skimr::skim(df)
+```
+
+
+### Feature Plots
+
+For the continuous variables, we can examine the distributions, broken out by the target variable, `Sex`.  
+
+
+### Dummy Columns
+
+We’ll need to dummy code our categorical variables.  This process will create new columns for each value and assign a 0 or 1.  Note that dummy encoding typically drops one value which becomes the baseline.  So if we have a categorical feature with five unique values, we will have four columns.  If all columns are 0, that represents the reference value.  This helps reduce the number of necessary columns.  With dummy columns in place, we need to remove our original variables from this dataset. 
+
+
+### Transforms
+
+`Age` is our only continuous variable.  We normalize our continuous features using a simple z-score standardization.  Although this may help our KNN model, we’ll have to be careful about interpretability later on!
+
+```{r}
+# z-score scale continuous features
+df[, c("Age")] <- scale(df[, c("Age")])
+
+df_dummy[, c("Age")] <- scale(df_dummy[, c("Age")])
+```
+
+Our data set is ready for our unsupervised models.  

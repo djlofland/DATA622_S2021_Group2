@@ -1,0 +1,23 @@
+body {
+    counter-reset: li; /* initialize counter named li */
+}
+
+h1 {
+    font-family:Avenir, Arial, Helvetica, sans-serif;
+    font-weight:bold;
+}
+
+h2 {
+    font-family:Avenir, Arial, Helvetica, sans-serif;
+    font-weight:bold;
+    margin-top: 24px;
+    counter-reset: section;
+}
+
+hr {
+    border: 1px solid #357FAA;
+}
+
+pre {
+    display:block; margin-left: 30px; 
+}
