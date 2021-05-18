@@ -6,7 +6,6 @@ output:
   html_document:
     theme: cerulean
     highlight: pygments
-    css: ./lab.css
     toc: true
     toc_float: true
     code_folding: hide
@@ -80,7 +79,6 @@ library(funModeling)
 library(klaR)
 library(scales)
 library(factoextra)
-library(DataExplorer)
 library(ClustOfVar)
 ```
 
@@ -127,7 +125,7 @@ Before loading our dataset, and discussing our data exploration process, I'll qu
 Given this context, we are now ready to load our data into R:  
 
 ```{r}
-df <- read.csv('./data/heart.csv', header = TRUE)
+df <- read.csv("https://raw.githubusercontent.com/djlofland/DATA622_S2021_Group2/main/FinalProject/data/heart.csv", header = TRUE)
 df <- df %>% rename(age = "ï..age")
 ```
 
@@ -174,7 +172,7 @@ Interestingly, we can also see that there's a pretty even split between those th
 
 ```{r, message=FALSE, warning=FALSE}
 # Bar plot for target (Heart disease) 
-ggplot(df_viz, aes(x=df_viz$target, fill=df_viz$target)) + 
+ggplot(df_viz, aes(x=target, fill=target)) + 
   geom_bar() +
   xlab("Heart Disease") +
   ylab("Count") +
@@ -201,6 +199,7 @@ df_viz %>%
   geom_point(alpha=0.7)+xlab("Age") +
   ylab("Cholestoral")
 ```
+
 Interestingly from the plot above, when we take a look at the relationship between a patient's age, cholesterol and whether or not they have heart disease, we can see that those with positive diagnoses tend to be clustered between the ages of 40 and 70 years and relatively high cholesterol levels.  
 
 We can explore this further by taking a look at these in percentages:  
@@ -240,16 +239,89 @@ df_dummy <- data.frame(predict(df_dummy, newdata = df_viz))
 
 ## Principle Component Analysis  
 
-[TODO: It looks like we'd be able to run PCA on this set of variables, so might be a good tactic if others are interested. I created a df_dummy dataset to hopefully help with this.]
+Principal Component Analysis (PCA) is one of the most commonly used unsupervised machine learning algorithms across a variety of applications: exploratory data analysis, dimensionality reduction and information compression. It is a useful technique for exploratory data analysis, allowing us to better visualize the variation present in a dataset with many variables. For our particular use case here, it appears that many of the questionnaire variables fall on likert scales, which when prepared for analysis are extended to dummy variables. This creates many additional features and can make analysis more difficult due to an increased number of dimensions. Therefore, utilizing PCA to reduce the number of dimensions on our entired dataset and measure the amount of variance explained is beneficial. In order to do this, we’ll use the prcomp() function:
+
+```{r}
+df_dummy.pca <- prcomp(df_dummy, center = TRUE,scale. = TRUE)
+summary(df_dummy.pca)
+```
+
+```{r}
+fviz_eig(df_dummy.pca)
+```
+
+```{r}
+#compute standard deviation of each principal component
+std_dev <- df_dummy.pca$sdev
+#compute variance
+pr_var <- std_dev^2
+prop_varex <- pr_var/sum(pr_var)
+round(prop_varex[1:10], 2)
+```
+
+The first principal component in our example therefore explains 20% of the variability, and the second principal component explains 8%. Together, the first ten principal components explain 69% of the variability. And we proceed to plot the PVE and cumulative PVE to provide us our scree plots as we did earlier. 
+
+```{r}
+#scree plot
+plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+#cumulative scree plot
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+```
+
+```{r}
+library("FactoMineR")
+library("factoextra")
+
+eig.val <- get_eigenvalue(df_dummy.pca)
+eig.val
+```
+
+```{r}
+res.pca <- PCA(df_dummy, scale.unit = TRUE, ncp = 5, graph = FALSE)
+var <- get_pca_var(res.pca)
+```
+
+```{r}
+corrplot(var$cos2, is.corr=FALSE)
+```
+
+
+```{r}
+corrplot(var$contrib, is.corr=FALSE)
+```
+
+```{r}
+fviz_contrib(df_dummy.pca, choice = "var", axes = 1, top = 15)
+fviz_contrib(df_dummy.pca, choice = "var", axes = 2, top = 15)
+```
+
+```{r}
+fviz_pca_var(df_dummy.pca,
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+```
+
+
+[TODO: Need more explanation]
 
 
 
 ## Logistic Regression Analysis  
 
+Logistic Regression is a Machine Learning algorithm which is used for the classification problems, it is a predictive analysis algorithm and based on the concept of probability.
+
 [TODO: Not sure if we want to run a basic logistic regression on this, but could be a good start]
 
 
 ## Splitting the Dataset into Training and Testing  
+Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.
+
 
 ```{r}
 set.seed(123)
@@ -261,6 +333,11 @@ df_test  <- df2[-index,]
 
 
 ## Support Vector Machine (SVM) Analysis  
+
+In machine learning, Support vector machine (SVM) are supervised learning models with associated learning algorithms that analyze data used for classification and regression analysis. It is mostly used in classification problems. In this algorithm, each data item is plotted as a point in n-dimensional space (where n is number of features), with the value of each feature being the value of a particular coordinate. Then, classification is performed by finding the hyper-plane that best differentiates the two classes.
+
+In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces.
+
 
 [TODO: I started the SVM model, but ran into an error when making predicitions. Unfortunately I don't have time to diagnose right now, but wanted to keep it in there in case it's helpful]
 
@@ -275,13 +352,67 @@ print(df.svm)
 
 ## Random Forest Analysis
 
+Random forest is a Supervised Learning algorithm which uses ensemble learning method for classification and regression. It is a bagging technique and not a boosting technique. The trees in random forests are run in parallel. There is no interaction between these trees while building the trees. It operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees.
+
+```{r}
+fit.forest <- randomForest(target ~ ., data = df_train)
+
+# display model details
+fit.forest
+
+# show which feature were most important
+importance(fit.forest)
+
+varImpPlot(fit.forest,type=2)
+```
+
+After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
+
+
+
+[TODO: I started the Random Forest model, but ran into an error when making predicitions.]
+
+
 [TODO: This may also be a good analysis to do with the dataset]
 
 
 ## Kmeans Analysis  
 
-[TODO: This may also be a good analysis to do with this dataset]
+K-means clustering is one of the simplest and popular unsupervised machine learning algorithms that is part of a much deep pool of data techniques and operations in the realm of Data Science. It is the fastest and most efficient algorithm to categorize data points into groups even when very little information is available about data.
+```{r}
+fviz_nbclust(df_dummy, kmeans, method = "wss") +
+  geom_vline(xintercept = 5, linetype = 2) + # add line for better visualization
+  labs(subtitle = "Elbow method") # add subtitle
+```
 
+We can see above, that it is approximately 5. More clusters do not improve within segment variability.  Therefore, we’ll perform our initial K-Means model with $k=5$.
+
+```{r}
+set.seed(42)
+km_res <- kmeans(df_dummy, centers = 5, nstart = 20)
+summary(km_res)
+sil <- silhouette(km_res$cluster, dist(df_dummy))
+fviz_silhouette(sil)
+```
+
+```{r}
+fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
+```
+
+To provide some context around the clusters that were generated by our algorithm, we decided to isolate the 5 clusters we created, and subjected them to our `df_dummy` dataset, grouping and computing the means for each one of our features, to see if any noticeable trends start to arise. 
+
+```{r}
+k_means_analysis_df <- df_dummy %>%
+  mutate(Cluster = km_res$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+```
+
+```{r}
+k_means_analysis_df <- k_means_analysis_df %>% select('Cluster', 'age', 'trestbps', 'chol', 'thalach', 'oldpeak')
+kable(k_means_analysis_df) %>% 
+  kable_styling(bootstrap_options = "responsive")
+```
 
 
 [Zach Note: just adding these in here since these were a few of the findings I discovered when running this data in python. We can take these out if they aren't helpful, but thought I'd leave them here in case others find similar trends or would like to expand on these.]
