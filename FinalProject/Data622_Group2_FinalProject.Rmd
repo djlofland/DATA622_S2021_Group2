@@ -311,16 +311,39 @@ fviz_pca_var(df_dummy.pca,
 [TODO: Need more explanation]
 
 
-
-## Logistic Regression Analysis  
-
-Logistic Regression is a Machine Learning algorithm which is used for the classification problems, it is a predictive analysis algorithm and based on the concept of probability.
-
-[TODO: Not sure if we want to run a basic logistic regression on this, but could be a good start]
-
-
 ## Splitting the Dataset into Training and Testing  
 Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.
+```{r}
+df$sex<-as.factor(df$sex)
+levels(df$sex)<-c("Female","Male")
+
+df$cp<-as.factor(df$cp)
+levels(df$cp)<-c("typical","atypical","non-anginal","asymptomatic")
+
+df$fbs<-as.factor(df$fbs)
+levels(df$fbs)<-c("False","True")
+
+df$restecg<-as.factor(df$restecg)
+levels(df$restecg)<-c("normal","stt","hypertrophy")
+
+df$exang<-as.factor(df$exang)
+levels(df$exang)<-c("No","Yes")
+
+df$slope<-as.factor(df$slope)
+levels(df$slope)<-c("upsloping","flat","downsloping")
+
+df$ca<-as.factor(df$ca)
+
+df$thal<-as.factor(df$thal)
+
+df$target<-as.factor(df$target)
+levels(df$target)<-c("No", "Yes")
+```
+
+
+```{r}
+str(df)
+```
 
 
 ```{r}
@@ -330,6 +353,16 @@ index    <- createDataPartition(df2$target, p=0.8, list = FALSE)
 df_train <- df2[index,]
 df_test  <- df2[-index,]
 ```
+
+
+## Logistic Regression Analysis  
+
+Logistic Regression is a Machine Learning algorithm which is used for the classification problems, it is a predictive analysis algorithm and based on the concept of probability.
+
+
+
+[TODO: Not sure if we want to run a basic logistic regression on this, but could be a good start]
+
 
 
 ## Support Vector Machine (SVM) Analysis  
@@ -342,10 +375,10 @@ In addition to performing linear classification, SVMs can efficiently perform a 
 [TODO: I started the SVM model, but ran into an error when making predicitions. Unfortunately I don't have time to diagnose right now, but wanted to keep it in there in case it's helpful]
 
 ```{r}
-x <- subset(df_test, select = -target)
-y <- df_test$target
-df.svm=svm(x, y)
-print(df.svm)
+#x <- subset(df_test, select = -target)
+#y <- df_test$target
+#df.svm=svm(x, y)
+#print(df.svm)
 
 ```
 
@@ -360,6 +393,12 @@ fit.forest <- randomForest(target ~ ., data = df_train)
 # display model details
 fit.forest
 
+plot(fit.forest)
+```
+
+Red line represents MCR of class not having heart diseases, green line represents MCR of class having heart diseases and black line represents overall MCR or OOB error. Overall error rate is what we are interested in which seems considerably good.
+
+```{r}
 # show which feature were most important
 importance(fit.forest)
 
@@ -367,13 +406,17 @@ varImpPlot(fit.forest,type=2)
 ```
 
 After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
+```{r}
+forest.pred <- predict(fit.forest, newdata = df_test, type = "class")
 
+forest.cm_train <- confusionMatrix(forest.pred, df_test$target)
 
+forest.cm_train
+```
 
-[TODO: I started the Random Forest model, but ran into an error when making predicitions.]
+The accuracy is 0.8167. The test result is not bad.
 
-
-[TODO: This may also be a good analysis to do with the dataset]
+[TODO: Need more explanation]
 
 
 ## Kmeans Analysis  
