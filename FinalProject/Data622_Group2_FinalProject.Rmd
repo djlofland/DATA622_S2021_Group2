@@ -237,7 +237,211 @@ df_dummy <- data.frame(predict(df_dummy, newdata = df_viz))
 ```
 
 
-## Principle Component Analysis  
+## Splitting the Dataset into Training and Testing  
+Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.
+```{r}
+df$sex<-as.factor(df$sex)
+levels(df$sex)<-c("Female","Male")
+
+df$cp<-as.factor(df$cp)
+levels(df$cp)<-c("typical","atypical","non-anginal","asymptomatic")
+
+df$fbs<-as.factor(df$fbs)
+levels(df$fbs)<-c("False","True")
+
+df$restecg<-as.factor(df$restecg)
+levels(df$restecg)<-c("normal","stt","hypertrophy")
+
+df$exang<-as.factor(df$exang)
+levels(df$exang)<-c("No","Yes")
+
+df$slope<-as.factor(df$slope)
+levels(df$slope)<-c("upsloping","flat","downsloping")
+
+df$ca<-as.factor(df$ca)
+
+df$thal<-as.factor(df$thal)
+
+df$target<-as.factor(df$target)
+levels(df$target)<-c("No", "Yes")
+```
+
+
+```{r}
+str(df)
+```
+
+
+```{r}
+set.seed(123)
+df2      <- data.frame(df)
+index    <- createDataPartition(df2$target, p=0.8, list = FALSE)
+df_train <- df2[index,]
+df_test  <- df2[-index,]
+```
+
+
+## Supervised Machine Learning
+
+### Random Forest Analysis
+
+Random forest is a Supervised Learning algorithm which uses ensemble learning method for classification and regression. It is a bagging technique and not a boosting technique. The trees in random forests are run in parallel. There is no interaction between these trees while building the trees. It operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees.
+
+```{r}
+set.seed(123)
+fit.forest <- randomForest(target ~ ., data = df_train)
+
+# display model details
+fit.forest
+
+plot(fit.forest)
+```
+
+Red line represents MCR of class not having heart diseases, green line represents MCR of class having heart diseases and black line represents overall MCR or OOB error. Overall error rate is what we are interested in which seems considerably good.
+
+```{r}
+# show which feature were most important
+importance(fit.forest)
+
+varImpPlot(fit.forest,type=2)
+```
+
+After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
+```{r}
+forest.pred <- predict(fit.forest, newdata = df_test, type = "class")
+forest.cm_train <- confusionMatrix(forest.pred, df_test$target)
+forest.cm_train
+
+```
+
+The accuracy is 0.8333. The test result is not bad.
+
+[TODO: Need more explanation]
+
+
+### Gradient Boosting
+
+```{r}
+
+set.seed(123)
+
+# build gradient boosted model
+fit.boost <- gbm(target~., df_train,
+             distribution = "gaussian",
+             n.trees = 2000,
+             cv.folds = 3)
+
+# display model details
+fit.boost
+
+
+```
+
+```{r}
+sqrt(min(fit.boost$cv.error))
+summary(fit.boost)
+```
+
+
+```{r}
+plot(fit.boost, i="chol")
+```
+
+```{r}
+
+plot(fit.boost, i="thalach")
+```
+```{r}
+# plot loss function as a result of n trees added to the ensemble
+gbm.perf(fit.boost, method = "cv")
+```
+```{r}
+
+gbm.perf(fit.boost, method = "OOB")
+
+```
+The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (42 iterations for the cv method and 45 for the OOB method), the test data’s error appears to increase because of overfitting.
+
+According to the cv method, we choose 42 as the number of trees to predict the test set.
+
+
+
+```{r}
+boostPre <- predict.gbm(fit.boost, 
+                        df_test, 
+                        n.trees = 42)
+boostPre <- ifelse(boostPre < 1.5, 'No', 'Yes')
+
+boostPre <- as.factor(boostPre)
+boost.cm <- confusionMatrix(boostPre, df_test$target)
+boost.cm
+```
+
+
+### Support Vector Machine
+
+In machine learning, Support vector machine (SVM) are supervised learning models with associated learning algorithms that analyze data used for classification and regression analysis. It is mostly used in classification problems. In this algorithm, each data item is plotted as a point in n-dimensional space (where n is number of features), with the value of each feature being the value of a particular coordinate. Then, classification is performed by finding the hyper-plane that best differentiates the two classes.
+
+In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces.
+
+
+```{r}
+set.seed(123)
+fit.svm<-svm(target~.,data=df_train,kernel="radial", cost=10,scale = FALSE)
+fit.svm
+
+```
+
+```{r}
+svm.pred <- predict(fit.svm, newdata = df_test, type = "class")
+svm.cm_train <- confusionMatrix(forest.pred, df_test$target)
+svm.cm_train
+```
+
+
+
+```{r}
+
+svm.tune <- tune(e1071::svm, target~.,
+                 data = df_train,
+                 ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
+                 kernel=c("linear", "polynomial", "radial"),
+                 gamma=c(0.5,1,2,3,4)))
+
+```
+
+```{r}
+summary(svm.tune)
+```
+
+```{r}
+bestmod<-svm.tune$best.model
+bestmod
+svm.pred2 <- predict(bestmod, newdata = df_test, type = "class")
+svm.cm_train2 <- confusionMatrix(forest.pred, df_test$target)
+svm.cm_train2
+```
+
+According to the Confusion matrix, Our model Accuracy is 0.8333.
+
+
+###  Supervised Model Performance
+
+```{r}
+Random_Forests<-c(forest.cm_train$overall[1],forest.cm_train$byClass[1],forest.cm_train$byClass[2],forest.cm_train$byClass[5],forest.cm_train$byClass[6],forest.cm_train$byClass[7])
+
+Gradient_Boosting<-c(boost.cm$overall[1],boost.cm$byClass[1],boost.cm$byClass[2],boost.cm$byClass[5],boost.cm$byClass[6],boost.cm$byClass[7])
+
+SVM<-c(svm.cm_train2$overall[1],svm.cm_train2$byClass[1],svm.cm_train2$byClass[2],svm.cm_train2$byClass[5],svm.cm_train2$byClass[6],svm.cm_train2$byClass[7])
+
+result<-rbind(Random_Forests,Gradient_Boosting,SVM)
+kable(result)
+```
+
+
+##  Unsupervised Machine Learning
+
+### Principle Component Analysis  
 
 Principal Component Analysis (PCA) is one of the most commonly used unsupervised machine learning algorithms across a variety of applications: exploratory data analysis, dimensionality reduction and information compression. It is a useful technique for exploratory data analysis, allowing us to better visualize the variation present in a dataset with many variables. For our particular use case here, it appears that many of the questionnaire variables fall on likert scales, which when prepared for analysis are extended to dummy variables. This creates many additional features and can make analysis more difficult due to an increased number of dimensions. Therefore, utilizing PCA to reduce the number of dimensions on our entired dataset and measure the amount of variance explained is beneficial. In order to do this, we’ll use the prcomp() function:
 
@@ -311,115 +515,9 @@ fviz_pca_var(df_dummy.pca,
 [TODO: Need more explanation]
 
 
-## Splitting the Dataset into Training and Testing  
-Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.
-```{r}
-df$sex<-as.factor(df$sex)
-levels(df$sex)<-c("Female","Male")
-
-df$cp<-as.factor(df$cp)
-levels(df$cp)<-c("typical","atypical","non-anginal","asymptomatic")
-
-df$fbs<-as.factor(df$fbs)
-levels(df$fbs)<-c("False","True")
-
-df$restecg<-as.factor(df$restecg)
-levels(df$restecg)<-c("normal","stt","hypertrophy")
-
-df$exang<-as.factor(df$exang)
-levels(df$exang)<-c("No","Yes")
-
-df$slope<-as.factor(df$slope)
-levels(df$slope)<-c("upsloping","flat","downsloping")
-
-df$ca<-as.factor(df$ca)
-
-df$thal<-as.factor(df$thal)
-
-df$target<-as.factor(df$target)
-levels(df$target)<-c("No", "Yes")
-```
 
 
-```{r}
-str(df)
-```
-
-
-```{r}
-set.seed(123)
-df2      <- data.frame(df)
-index    <- createDataPartition(df2$target, p=0.8, list = FALSE)
-df_train <- df2[index,]
-df_test  <- df2[-index,]
-```
-
-
-## Logistic Regression Analysis  
-
-Logistic Regression is a Machine Learning algorithm which is used for the classification problems, it is a predictive analysis algorithm and based on the concept of probability.
-
-
-
-[TODO: Not sure if we want to run a basic logistic regression on this, but could be a good start]
-
-
-
-## Support Vector Machine (SVM) Analysis  
-
-In machine learning, Support vector machine (SVM) are supervised learning models with associated learning algorithms that analyze data used for classification and regression analysis. It is mostly used in classification problems. In this algorithm, each data item is plotted as a point in n-dimensional space (where n is number of features), with the value of each feature being the value of a particular coordinate. Then, classification is performed by finding the hyper-plane that best differentiates the two classes.
-
-In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces.
-
-
-[TODO: I started the SVM model, but ran into an error when making predicitions. Unfortunately I don't have time to diagnose right now, but wanted to keep it in there in case it's helpful]
-
-```{r}
-#x <- subset(df_test, select = -target)
-#y <- df_test$target
-#df.svm=svm(x, y)
-#print(df.svm)
-
-```
-
-
-## Random Forest Analysis
-
-Random forest is a Supervised Learning algorithm which uses ensemble learning method for classification and regression. It is a bagging technique and not a boosting technique. The trees in random forests are run in parallel. There is no interaction between these trees while building the trees. It operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees.
-
-```{r}
-fit.forest <- randomForest(target ~ ., data = df_train)
-
-# display model details
-fit.forest
-
-plot(fit.forest)
-```
-
-Red line represents MCR of class not having heart diseases, green line represents MCR of class having heart diseases and black line represents overall MCR or OOB error. Overall error rate is what we are interested in which seems considerably good.
-
-```{r}
-# show which feature were most important
-importance(fit.forest)
-
-varImpPlot(fit.forest,type=2)
-```
-
-After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
-```{r}
-forest.pred <- predict(fit.forest, newdata = df_test, type = "class")
-
-forest.cm_train <- confusionMatrix(forest.pred, df_test$target)
-
-forest.cm_train
-```
-
-The accuracy is 0.8167. The test result is not bad.
-
-[TODO: Need more explanation]
-
-
-## Kmeans Analysis  
+### Kmeans Analysis  
 
 K-means clustering is one of the simplest and popular unsupervised machine learning algorithms that is part of a much deep pool of data techniques and operations in the realm of Data Science. It is the fastest and most efficient algorithm to categorize data points into groups even when very little information is available about data.
 ```{r}
@@ -459,6 +557,11 @@ kable(k_means_analysis_df) %>%
 
 
 [Zach Note: just adding these in here since these were a few of the findings I discovered when running this data in python. We can take these out if they aren't helpful, but thought I'd leave them here in case others find similar trends or would like to expand on these.]
+
+
+
+
+
 
 ## Conclusions  
 
