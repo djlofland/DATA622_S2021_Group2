@@ -289,7 +289,7 @@ Random forest is a Supervised Learning algorithm which uses ensemble learning me
 
 ```{r}
 set.seed(123)
-fit.forest <- randomForest(target ~ ., data = df_train)
+fit.forest <- randomForest(target ~ ., data = df_train, importance=TRUE, ntree=2000)
 
 # display model details
 fit.forest
@@ -314,7 +314,7 @@ forest.cm_train
 
 ```
 
-The accuracy is 0.8333. The test result is not bad.
+The accuracy is 0.85. The test result is not bad.
 
 [TODO: Need more explanation]
 
@@ -329,7 +329,7 @@ set.seed(123)
 fit.boost <- gbm(target~., df_train,
              distribution = "gaussian",
              n.trees = 2000,
-             cv.folds = 3)
+             cv.folds = 5)
 
 # display model details
 fit.boost
@@ -393,7 +393,7 @@ fit.svm
 ```
 
 ```{r}
-svm.pred <- predict(fit.svm, newdata = df_test, type = "class")
+svm.pred <- predict(fit.svm, newdata = df_test)
 svm.cm_train <- confusionMatrix(forest.pred, df_test$target)
 svm.cm_train
 ```
