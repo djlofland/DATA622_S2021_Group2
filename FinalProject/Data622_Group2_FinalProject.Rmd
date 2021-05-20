@@ -620,16 +620,18 @@ esm.cm_train <- confusionMatrix(esm.df[['vote']], df_test[, 22])
                esm.cm_train$byClass[7]))
 ```
 
+See discussion of results in our conclusion.
 
 ###  Supervised Model Performance
+
+Here are the tablulated results from all our models, including the Ensemble Model that combines all 5.
 
 ```{r}
 result <- rbind(rf.perf, gbm.perf, svm.perf, nn.perf, mars.perf, esm.perf)
 
 kable(result)
 ```
-
-[TODO: Discuss summary]
+See discussion of performance in our conclusion below.
 
 ## Conclusions  
 
@@ -639,6 +641,10 @@ Many of the attributes that were available in the Cleveland Heart Disease datase
 
 Additionally, a large percentage of individuals that exhibited exercise-induced angina (chest pain) had heart disease (roughly 75% of the individuals in the dataset). This is something worth noting, as it may help physicians with diagnoses and helping to identify factors that could lead to this type of disease.
 
+[TODO: Discuss feature importance across 5 models]
+
 It was also very interesting to run some machine learning algorithms on this dataset. Support Vector Machines (SVM) and Random Forest both provided pretty good classification outputs for predicting whether or not an individual has heart disease. Implementing more of these types of models in the future may be valuable to help physicians make proper decisions and can aid in diagnoses.
 
-Finally, the SVM model that I used for this dataset appeared to be slightly more effective when it was implemented on the test dataset. Although the Random Forest model did extraordinarily well on the training dataset (accuracy around 99%), when extending this model to the testing dataset it seemed to yield a higher number of false negatives and false positives thant he SVM model. If this model were to be used in real world scenarios, it could lead to catastrophic consequences if this were the only decision-making tool -- a relatively large percentage of patients could be wrongfully diagnosed with heart disease, and others would be wrongfully told that they do not have heart disease when they actually do.
+We ended up training 5 different models with the data set: Random Forest, Gradient Booste Machine, Support Vector Machine, Neural Network, and Multiple Adaptive Regressinve Splines.  The performance measures that are most important to us are Accuracy and Sensitvity (aka Recall).  Accuracy will tell us our True Positive ans True Negative rate which are important.  When working with health related prediction, errors leading to False Negative are far worse than errors leading to False Positive.  The logic is that if we incorrectly predict someone has having disease (and they get unnecessary followup), that is better than the alternative where we fail to predict and they don't get necessary care.  So, to minimize False Negative, we want to maximize Sensitvity (aka Recall).  We would like to have high Specifcity (or Precision), but that is a lower priority.
+
+Given this context, our GBM had $Accuracy=0.8500$ and $Sensitivity=0.7778$ and our Neural Network came in with $Accuracy=0.8167$ and $Sensitivity=0.8148148$.  However, the overall winner is out Ensemble Model that combines all the individual models.  The Ensemble had $Accuracy=0.8500$ and $Senitvity=0.8148148$ - giving us the best of both.  The reason Ensembles can outperform - and especially when facing unseen data - is that every individual model will have some blindspots and make errors.  When we combine a number of models, then we leverage the group to help catch errors by individual models.  With 5 different models, they vote, best 3 out of 5.  This helps compensate for one-off errors by models.  Note, we tried several combinations of Ensemble, dropping out the 2 lowest performing models (RF and MARS), but while they were individually the lowest performance individually, we we removed them from the emsemble, the ensemble performance decreased.  So apparantly, while RF and MARS didn't do as well overall, they did add value to the group.

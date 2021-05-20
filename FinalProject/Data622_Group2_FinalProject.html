@@ -2079,9 +2079,11 @@ oldpeak
 <span id="cb84-24"><a href="#cb84-24" aria-hidden="true" tabindex="-1"></a>               esm.cm_train<span class="sc">$</span>byClass[<span class="dv">7</span>]))</span></code></pre></div>
 <pre><code>##    Accuracy Sensitivity Specificity   Precision      Recall          F1 
 ##   0.8500000   0.8148148   0.8787879   0.8461538   0.8148148   0.8301887</code></pre>
+<p>See discussion of results in our conclusion.</p>
 </div>
 <div id="supervised-model-performance" class="section level3">
 <h3>Supervised Model Performance</h3>
+<p>Here are the tablulated results from all our models, including the Ensemble Model that combines all 5.</p>
 <div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" aria-hidden="true" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">rbind</span>(rf.perf, gbm.perf, svm.perf, nn.perf, mars.perf, esm.perf)</span>
 <span id="cb86-2"><a href="#cb86-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb86-3"><a href="#cb86-3" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(result)</span></code></pre></div>
@@ -2251,7 +2253,7 @@ esm.perf
 </tr>
 </tbody>
 </table>
-<p>[TODO: Discuss summary]</p>
+<p>See discussion of performance in our conclusion below.</p>
 </div>
 </div>
 <div id="conclusions" class="section level2">
@@ -2259,8 +2261,10 @@ esm.perf
 <p>In the end, we worked through a fair bit of analysis on this heart disease dataset. From this, we’ve come up with a few interesting conclusions:</p>
 <p>Many of the attributes that were available in the Cleveland Heart Disease dataset, and the individuals in this dataset, matched many of the underlying factors that can lead to heart disease. For instance, many that did indeed have heart disease exhibited higher resting blood pressure, higher cholesterol, and were older, on average than those that did not have heart disease.</p>
 <p>Additionally, a large percentage of individuals that exhibited exercise-induced angina (chest pain) had heart disease (roughly 75% of the individuals in the dataset). This is something worth noting, as it may help physicians with diagnoses and helping to identify factors that could lead to this type of disease.</p>
+<p>[TODO: Discuss feature importance across 5 models]</p>
 <p>It was also very interesting to run some machine learning algorithms on this dataset. Support Vector Machines (SVM) and Random Forest both provided pretty good classification outputs for predicting whether or not an individual has heart disease. Implementing more of these types of models in the future may be valuable to help physicians make proper decisions and can aid in diagnoses.</p>
-<p>Finally, the SVM model that I used for this dataset appeared to be slightly more effective when it was implemented on the test dataset. Although the Random Forest model did extraordinarily well on the training dataset (accuracy around 99%), when extending this model to the testing dataset it seemed to yield a higher number of false negatives and false positives thant he SVM model. If this model were to be used in real world scenarios, it could lead to catastrophic consequences if this were the only decision-making tool – a relatively large percentage of patients could be wrongfully diagnosed with heart disease, and others would be wrongfully told that they do not have heart disease when they actually do.</p>
+<p>We ended up training 5 different models with the data set: Random Forest, Gradient Booste Machine, Support Vector Machine, Neural Network, and Multiple Adaptive Regressinve Splines. The performance measures that are most important to us are Accuracy and Sensitvity (aka Recall). Accuracy will tell us our True Positive ans True Negative rate which are important. When working with health related prediction, errors leading to False Negative are far worse than errors leading to False Positive. The logic is that if we incorrectly predict someone has having disease (and they get unnecessary followup), that is better than the alternative where we fail to predict and they don’t get necessary care. So, to minimize False Negative, we want to maximize Sensitvity (aka Recall). We would like to have high Specifcity (or Precision), but that is a lower priority.</p>
+<p>Given this context, our GBM had <span class="math inline">\(Accuracy=0.8500\)</span> and <span class="math inline">\(Sensitivity=0.7778\)</span> and our Neural Network came in with <span class="math inline">\(Accuracy=0.8167\)</span> and <span class="math inline">\(Sensitivity=0.8148148\)</span>. However, the overall winner is out Ensemble Model that combines all the individual models. The Ensemble had <span class="math inline">\(Accuracy=0.8500\)</span> and <span class="math inline">\(Senitvity=0.8148148\)</span> - giving us the best of both. The reason Ensembles can outperform - and especially when facing unseen data - is that every individual model will have some blindspots and make errors. When we combine a number of models, then we leverage the group to help catch errors by individual models. With 5 different models, they vote, best 3 out of 5. This helps compensate for one-off errors by models. Note, we tried several combinations of Ensemble, dropping out the 2 lowest performing models (RF and MARS), but while they were individually the lowest performance individually, we we removed them from the emsemble, the ensemble performance decreased. So apparantly, while RF and MARS didn’t do as well overall, they did add value to the group.</p>
 </div>
 
 
