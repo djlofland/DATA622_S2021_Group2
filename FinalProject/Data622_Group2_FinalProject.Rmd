@@ -1,7 +1,8 @@
 ---
 title: "Data 622 - Final Project (Group 2)"
+subtitle: "Predicting Heart Disease"
 author: "Mengqin Cai, Zhi Ying Chen, Donny Lofland, Zach Alexander"
-date: "5/7/2021"
+date: "5/19/2021"
 output: 
   html_document:
     theme: cerulean
@@ -90,87 +91,95 @@ library(ClustOfVar)
 
 ### Information about the dataset
 
-Before loading our dataset, and discussing our data exploration process, I'll quickly summarize the dataset that we'll be using for our machine learning analysis. The dataset is part of UCI's Cleveland Heart Disease data file, which consists of 303 individuals and various health-related metrics. The dataset we'll be using includes 14 attributes retrieved from patient tests and can be used for machine learning and classification analysis. Ultimately, these attributes will be examined to determine their effectiveness at predicting whether or not a particular patient has Heart Disease.  You can find more information about these 14 attributes below:
+Before loading our dataset, and discussing our data exploration process, We'll quickly summarize the dataset that we'll be using for our machine learning analysis. The dataset is part of **UCI's Cleveland Heart Disease** data file, which consists of 303 individuals and various health-related metrics. The dataset we'll be using includes 14 attributes retrieved from patient tests and can be used for machine learning and classification analysis. Ultimately, these attributes will be examined to determine their effectiveness at predicting whether or not a particular patient has Heart Disease.  You can find more information about these 14 attributes below:
 
 **Data Dictionary:**  
 
 * `age`: age in years  
-* `sex`: sex (1 = male; 0 = female)  
+* `sex`: sex (`1` = male; `0` = female)  
 * `cp`: chest pain type  
-    + `Value 1: typical angina  
-    + Value 2: atypical angina  
-    + Value 3: non-anginal pain  
-    + Value 4: asymptomatic  
+    + Value `1`: typical angina  
+    + Value `2`: atypical angina  
+    + Value `3`: non-anginal pain  
+    + Value `4`: asymptomatic  
 * `trestbps`: resting blood pressure (in mm Hg on admission to the hospital)  
 * `chol`: serum cholesterol in mg/dl  
-* `fbs`: (fasting blood sugar > 120 mg/dl) (1 = true; 0 = false)  
+* `fbs`: (fasting blood sugar > 120 mg/dl) (`1` = true; `0` = false)  
 * `restecg`: resting electrocardiographic results  
-    + Value 0: normal  
-    + Value 1: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV)  
-    + Value 2: showing probable or definite left ventricular hypertrophy by Estes' criteria  
+    + Value `0`: normal  
+    + Value `1`: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV)  
+    + Value `2`: showing probable or definite left ventricular hypertrophy by Estes' criteria  
 * `thalach`: maximum heart rate achieved  
-* `exang`: exercise induced angina (1 = yes; 0 = no)  
+* `exang`: exercise induced angina (`1` = yes; `0` = no)  
 * `oldpeak`: ST depression induced by exercise relative to rest  
 * `slope`: the slope of the peak exercise ST segment  
-    + Value 1: upsloping  
-    + Value 2: flat  
-    + Value 3: downsloping  
-* `ca`: number of major vessels (0-3) colored by fluoroscopy  
-* `thal`: 3 = normal; 6 = fixed defect; 7 = reversible defect  
+    + Value `0`: upsloping  
+    + Value `1`: flat  
+    + Value `2`: downsloping  
+* `ca`: number of major vessels (0-4) colored by fluoroscopy  
+* `thal`: `3` = normal; `6` = fixed defect; `7` = reversible defect  
 * `target`: diagnosis of heart disease (angiographic disease status)  
-    + Value 0: < 50% diameter narrowing  
-    + Value 1: > 50% diameter narrowing  
+    + Value `0`: < 50% diameter narrowing  
+    + Value `1`: > 50% diameter narrowing  
     
-Given this context, we are now ready to load our data into R:  
+### Exploratory Data Analysis  
+
+First, we can check the shape of the dataset. It looks like there are 303 rows and 14 columns in our imported data.  We also show the first few rows of data just to sanity check that things look correct.
 
 ```{r}
 df <- read.csv("./data/heart.csv", header = TRUE)
-#df <- df %>% 
-#  rename(age = "age")
+
+dim(df)
 ```
 
-### Exploratory Data Analysis  
-
-First, we can check the shape of the dataset. It looks like there are 303 rows and 14 columns in our imported data.
-
 ```{r}
-dim(df)
+kable(head(df)) 
 ```
 
 ### Missing values in the dataset
 
-We can also check to see if there is missing data.
+Missing values can be problematic if present. We can also check to see if there is missing data.
 
 ```{r, warning=FALSE}
 plot_missing(df)
 ```
 
-As we can see above, there aren't any missing values across our dataset, which will make it easier for us as we start to prepare our dataset for machine learning analysis. Next, we'll look at a full summary of our features, including rudimentary distributions of each of our continuous variables:    
+As we can see above, there aren't any missing values across our dataset, which will make it easier for us as we start to prepare our dataset for machine learning analysis. 
 
-```{r}
-skimr::skim(df)
-```
-
-
+As a next steps, let's convert known categorical features into `factor` data type, then show a summary of our dataframe.
 
 ```{r}
 df_viz <- df %>% 
   mutate(sex = if_else(sex == 1, "Male", "Female"),
-         fbs = if_else(fbs == 1, ">120", "<=120"),
+         fbs = ordered(fbs, levels=c(0, 1), labels=c("<=120", ">120")),
          exang = if_else(exang == 1, "Yes" ,"No"),
          cp = if_else(cp == 1, "Atypical Angina",
                       if_else(cp == 2, "Non-anginal pain", "Asymptomatic")),
          restecg = if_else(restecg == 0, "Normal",
                            if_else(restecg == 1, "Abnormality", "probable or definite")),
-         slope = as.factor(slope),
-         ca = as.factor(ca),
+         slope = ordered(slope, 
+                         levels=c(2, 1, 0), 
+                         labels=c('down', 'flat', 'up')),
+         ca = ordered(ca, 
+                      levels=c(0, 1, 2, 3, 4), 
+                      labels=c(0, 1, 2, 3, 4)),
          thal = as.factor(thal),
          target = if_else(target == 1, "Has heart disease", "Does not have heart disease")) %>% 
   mutate_if(is.character, as.factor) %>% 
   dplyr::select(target, sex, fbs, exang, cp, restecg, slope, ca, thal, everything())
 ```
 
-Interestingly, we can also see that there's a pretty even split between those that have a presence and absence of heart disease:  
+Next, we'll look at a full summary of our features, including rudimentary distributions of each of our continuous variables:    
+
+```{r}
+skimr::skim(df_viz)
+```
+
+Looking at our `target`, there is a reasonable class balance between the presence and absence of heart disease.  However, we do see value class imbalance when looking at several of the factor features: `fbs`, `exang`, `cp`, `restecg`, `slop`, `ca`, and `thal`.  
+
+While `age` looks normally distributed, there is apparent right-skew in `trestbps`, `chol`, and `oldpeak`.  `thalach` is left skewed.  Our continuous features are also on different scales.  We will want to transform and normalize these ahead of modeling. 
+
+Let's visualize our `target` distribution.
 
 ```{r, message=FALSE, warning=FALSE}
 # Bar plot for target (Heart disease) 
@@ -181,7 +190,6 @@ ggplot(df_viz, aes(x=target, fill=target)) +
   ggtitle("Analysis of Presence and Absence of Heart Disease") +
   scale_fill_discrete(name = "Heart Disease", labels = c("Absence", "Presence"))
 ```
-
 
 ```{r}
 prop.table(table(df_viz$target))
@@ -218,18 +226,81 @@ df %>%
 
 ### Feature Plots
 
-For the continuous variables, we can examine the distributions, broken out by the target variable.  
+Next, we explore the relationships between each feature and the target.  For our continuous features, we do a simple `featurePlot` from the `caret` package which also lets us see how pairs of features relate with the target.
 
-```{r}
-cor_heart <- cor(df[,c(4,5,8,10,14)])
-cor_heart
-
-corrplot(cor_heart, method = "ellipse", type="upper",)
-ggcorrplot(cor_heart,lab = T)
-ggcorr(cor_heart, label = T, label_round = 2)
+```{r fig.height=5, fig.width=5}
+featurePlot(x=df_viz[,c(10, 11, 12, 13, 14)], y=df_viz[, 1], 
+            plot = "ellipse", 
+            auto.key = list(columns = 2))
 ```
 
-[TODO: More explanation of these corr plots]
+Here we see some patterns emerge, for example, `oldpeak` tends to cluster towards lower values across all other features in the heart disease group.  Also `thalach` tends towards higher values across each other features in the heart disease group. `chol` and `thalach` together have a tighter clustering and separation between our target classes.
+
+For the continuous variables, we can also examine the correlations, broken out by the target variable.  
+
+```{r message=FALSE, warning=FALSE}
+wo_hd <- df_viz %>% 
+  filter(target == 'Does not have heart disease') %>% 
+  select(age, trestbps, chol, thalach, oldpeak)
+
+cor_heart_wo <- cor(wo_hd)
+
+ggcorr(cor_heart_wo, label = T, label_round = 2) +
+  scale_fill_gradient2(low='#ff0000', mid='#ffffff', high='#00ff00', 
+                        midpoint=0, guide = "colourbar", aesthetics = "fill") +
+  ggtitle('Correlation Plot: Patients without Heart Disease')
+
+wi_hd <- df_viz %>% 
+  filter(target == 'Has heart disease') %>% 
+  select(age, trestbps, chol, thalach, oldpeak)
+
+cor_heart_wi <- cor(wi_hd)
+
+ggcorr(cor_heart_wi, label = T, label_round = 2) +
+  scale_fill_gradient2(low='#ff0000', mid='#ffffff', high='#00ff00', 
+                        midpoint=0, guide = "colourbar", aesthetics = "fill") +
+  ggtitle('Correlation Plot: Patients with Heart Disease')
+
+cor_heart_delta = cor_heart_wi - cor_heart_wo
+
+delta_df <- as.data.frame(cor_heart_delta)
+
+delta_dfl <- delta_df %>% 
+  rownames_to_column(var="X") %>%
+  pivot_longer(cols=-c(X), names_to='Y')
+  
+ggplot(delta_dfl, aes(X, Y, fill=value)) +
+  geom_tile() + 
+  coord_flip() +
+  scale_fill_gradient2(low='#ff0000', mid='#ffffff', high='#00ff00', 
+                        midpoint=0, guide = "colourbar", aesthetics = "fill") +
+  ggtitle('Difference between Correlograms: With Disease - Without Disease')
+```
+
+We separate out the correleograms based on `target` class.  The first chart show the pairwise correlations between continuous variable in our Healthy patients.  The second chart shows the pairwise correlations in patients with heart disease.  The third chart sows the difference to help draw attention to how heart disease patients differ from healthy patients.  For example, `age` vs. `thalach` correlation in healthy patients is `-0.55`.  In heart diseased patients, the correlation is `-0.94` ... there is a much stronger negative correlation between these features in our diseased patients.  The third chart show a bright red filled for `age` vs. `thalach` to draw attention that this correlation became more negative.  As a counter example, the `age` vs. `cholesterol` correlation is higher in diseased patients vs healthy (0.23 > -0.12).  This increase in correlation shows as a light green tile in the Difference plot (third).
+
+We can use bar charts to visualize how our categorical features are distribute across the two target classes.
+
+```{r fig.width=8}
+long_df <- df_viz %>% 
+  select(c(target:thal)) %>%
+  mutate(fbs = factor(as.character(fbs)),
+         ca = factor(as.character(ca)),
+         thal = factor(as.character(thal)),
+         slope = factor(as.character(slope))) %>%
+  pivot_longer(cols=-c(target), names_to='kpi')
+
+ggplot(long_df, aes(x=value, fill=target)) + 
+  geom_bar() + 
+  facet_wrap(~kpi, scales="free_x") + 
+  ggtitle('Comparing Categorical Features and Target')
+```
+
+A few notable points:
+
+* Looking as `sex`, we now see that of the patients in this study, a far higher portion of `female` presented with heat disease compared with the `males`.  
+* `exang` of `No` is more common with having heart disease. 
+* As we would expect, `cp` = `Asymptomatic` is far more correlated with being healthy.
 
 ### Dummy Columns
 
@@ -237,54 +308,30 @@ We'll need to dummy code our categorical variables.  This process will create ne
 
 ```{r}
 # dummy encode our categorical features
-df_dummy <- dummyVars(~ 0 + ., drop2nd=TRUE, data = df_viz)
-df_dummy <- data.frame(predict(df_dummy, newdata = df_viz))
+df_dummy <- dummyVars(~ ., fullRank=T, drop2nd=T, data=df_viz)
+df_dummy <- data.frame(predict(df_dummy, newdata=df_viz))
+
+df_dummy <- df_dummy %>%
+  mutate(target = as.factor(target.Has.heart.disease)) %>%
+  select(-target.Has.heart.disease)
 ```
 
+Note: the `dummyVars()` function from `caret` also automatically applies a scale and center transform on all our continuous features.  While we could probably choose custom transformations that improve performance (e.g. using `BoxCox.lambda` per feature), the distributions we saw above didn't look that skewed.  The default `caret` transform is probably sufficient.  
 
-## Splitting the Dataset into Training and Testing  
-Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.
+## Splitting the Dataset into Training and Testing
 
-```{r}
-df$sex<-as.factor(df$sex)
-levels(df$sex)<-c("Female","Male")
-
-df$cp<-as.factor(df$cp)
-levels(df$cp)<-c("typical","atypical","non-anginal","asymptomatic")
-
-df$fbs<-as.factor(df$fbs)
-levels(df$fbs)<-c("False","True")
-
-df$restecg<-as.factor(df$restecg)
-levels(df$restecg)<-c("normal","stt","hypertrophy")
-
-df$exang<-as.factor(df$exang)
-levels(df$exang)<-c("No","Yes")
-
-df$slope<-as.factor(df$slope)
-levels(df$slope)<-c("upsloping","flat","downsloping")
-
-df$ca<-as.factor(df$ca)
-
-df$thal<-as.factor(df$thal)
-
-df$target<-as.factor(df$target)
-levels(df$target)<-c("No", "Yes")
-```
-
-
-```{r}
-str(df)
-```
-
+Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on dummied dataset.
 
 ```{r}
 set.seed(123)
-df2      <- data.frame(df)
-index    <- createDataPartition(df2$target, p=0.8, list = FALSE)
-df_train <- df2[index,]
-df_test  <- df2[-index,]
+
+index    <- createDataPartition(df_dummy$target, p=0.8, list = FALSE)
+
+df_train <- df_dummy[index,]
+df_test  <- df_dummy[-index,]
 ```
+
+With our dataset prepared and training/test split in place, we re ready to proceed with trying different machine learning models to predict heart disease given our feature.
 
 ## Supervised Machine Learning
 
@@ -314,9 +361,16 @@ varImpPlot(fit.forest,type=2)
 After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
 
 ```{r}
-forest.pred <- predict(fit.forest, newdata = df_test, type = "class")
-forest.cm_train <- confusionMatrix(forest.pred, df_test$target)
-forest.cm_train
+rf.pred <- predict(fit.forest, newdata=df_test, type = "class")
+(forest.cm_train <- confusionMatrix(rf.pred, df_test$target))
+
+rf.perf <- c(forest.cm_train$overall[1], 
+             forest.cm_train$byClass[1], 
+             forest.cm_train$byClass[2], 
+             forest.cm_train$byClass[5], 
+             forest.cm_train$byClass[6], 
+             forest.cm_train$byClass[7])
+
 ```
 
 The accuracy is 0.85. The test result is not bad. [TODO: Discuss sensitivity and specificity]
@@ -370,7 +424,7 @@ gbm.perf(fit.boost, method = "OOB")
 
 ```
 
-The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (42 iterations for the cross-validation method and 45 for the OOB method), the test data error appears to increase because of overfitting.
+The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (82 iterations for the cross-validation method and 43 for the OOB method), the test data error appears to increase because of overfitting.
 
 According to the cross-validation method, we choose 42 as the number of trees to predict the test set.
 
@@ -378,11 +432,18 @@ According to the cross-validation method, we choose 42 as the number of trees to
 boostPre <- predict.gbm(fit.boost, 
                         df_test, 
                         n.trees = 42)
-boostPre <- ifelse(boostPre < 1.5, 'No', 'Yes')
+boostPre <- ifelse(boostPre < 1.5, 0, 1)
 
-boostPre <- as.factor(boostPre)
-boost.cm <- confusionMatrix(boostPre, df_test$target)
-boost.cm
+gbm.pred <- as.factor(boostPre)
+
+(boost.cm <- confusionMatrix(gbm.pred, df_test$target))
+
+gbm.perf <- c(boost.cm$overall[1],
+              boost.cm$byClass[1],
+              boost.cm$byClass[2],
+              boost.cm$byClass[5],
+              boost.cm$byClass[6],
+              boost.cm$byClass[7])
 ```
 
 [TODO: Discussion ... accuracy, sensitvity, specificity]
@@ -395,6 +456,7 @@ In addition to performing linear classification, SVMs can efficiently perform a 
 
 ```{r}
 set.seed(123)
+
 fit.svm <- svm(target~., 
                data=df_train, 
                kernel="radial", 
@@ -407,8 +469,7 @@ fit.svm
 svm.pred <- predict(fit.svm, 
                     newdata = df_test)
 
-svm.cm_train <- confusionMatrix(forest.pred, df_test$target)
-svm.cm_train
+(svm.cm_train <- confusionMatrix(svm.pred, df_test$target))
 ```
 
 [Discuss: ...]
@@ -438,162 +499,137 @@ bestmod
 
 svm.pred2 <- predict(bestmod, newdata = df_test, type = "class")
 
-(svm.cm_train2 <- confusionMatrix(forest.pred, df_test$target))
+(svm.cm_train2 <- confusionMatrix(svm.pred2, df_test$target))
+
+svm.perf <- c(svm.cm_train2$overall[1],
+              svm.cm_train2$byClass[1],
+              svm.cm_train2$byClass[2],
+              svm.cm_train2$byClass[5],
+              svm.cm_train2$byClass[6],
+              svm.cm_train2$byClass[7])
 ```
 
 According to the Confusion matrix, Our model Accuracy is 0.8333. [TODO: Discuss]
+
+### Neural Network
+
+```{r warning=FALSE}
+set.seed(123)
+
+
+## Create a specific candidate set of models to evaluate:
+nnetGrid <- expand.grid(
+  .decay = c(0, 0.1, 1),
+  .size = c(1:10),
+  ## The next option is to use bagging (see the
+  ## next chapter) instead of different random
+  ## seeds.
+  .bag = FALSE)
+
+ctrl <- trainControl(method='cv', number=10)
+
+nnetModel <- train(df_train[, 1:21], df_train[, 22],
+  method = "avNNet",
+  tuneGrid = nnetGrid,
+  trControl = ctrl,
+  linout = TRUE,
+  trace = FALSE,
+  MaxNWts = 243,
+  maxit = 500)
+
+# Model results
+plot(nnetModel)
+summary(nnetModel)
+varImp(nnetModel)
+
+nn.pred <- predict(nnetModel, newdata = df_test[, 1:21])
+
+(nn.cm_train <- confusionMatrix(nn.pred, df_test[, 22]))
+
+nn.perf <- c(nn.cm_train$overall[1], 
+             nn.cm_train$byClass[1], 
+             nn.cm_train$byClass[2], 
+             nn.cm_train$byClass[5], 
+             nn.cm_train$byClass[6], 
+             nn.cm_train$byClass[7])
+```
+
+
+### Multivariate Adaptive Regressive Splines (MARS)
+
+One final model we will try is MARS.  MARS has the advantage that it uses derived features so in effect has a built in dimensionality reduction steps.
+
+```{r warning=FALSE}
+set.seed(123)
+
+# Define the candidate models to test
+marsGrid <- expand.grid(.degree = 1:2, .nprune = 2:38)
+
+marsModel <- train(df_train[, 1:21], df_train[, 22],
+  method = "earth",
+  tuneGrid = marsGrid,
+  trControl = trainControl(method = "cv"))
+
+# Model results
+plot(marsModel)
+summary(marsModel)
+varImp(marsModel)
+
+mars.pred <- predict(marsModel, newdata = df_test[, 1:21])
+
+mars.cm_train <- confusionMatrix(mars.pred, df_test[, 22])
+
+(mars.perf <- c(mars.cm_train$overall[1], 
+                mars.cm_train$byClass[1], 
+                mars.cm_train$byClass[2], 
+                mars.cm_train$byClass[5], 
+                mars.cm_train$byClass[6], 
+                mars.cm_train$byClass[7]))
+
+```
+
+
+### Ensemble Classifier
+
+Lastly, let's build an ensemble classifer that combines all of the models we've trained.  The simplest approach is to predict the class with each model, then take a vote of the 5 models on which class should be selected. The hope is that the models made errors on different rows so by combining, models can help cover for each other where a given model might have struggled. 
+
+```{r}
+# Create the function.
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+esm.df <- data.frame(cbind(rf.pred, gbm.pred, svm.pred2, nn.pred, mars.pred))
+esm.df$vote <- 0
+
+esm.df <- esm.df %>%
+  rowwise() %>%
+  mutate(vote = getmode(c(rf.pred, gbm.pred, svm.pred2, nn.pred, mars.pred)))
+
+esm.df <- esm.df %>%
+  mutate(vote = factor(vote, levels=c(1,2), labels=c(0,1)))
+
+esm.cm_train <- confusionMatrix(esm.df[['vote']], df_test[, 22])
+
+(esm.perf <- c(esm.cm_train$overall[1], 
+               esm.cm_train$byClass[1], 
+               esm.cm_train$byClass[2], 
+               esm.cm_train$byClass[5], 
+               esm.cm_train$byClass[6], 
+               esm.cm_train$byClass[7]))
+```
 
 
 ###  Supervised Model Performance
 
 ```{r}
-Random_Forests <- c(forest.cm_train$overall[1], 
-                    forest.cm_train$byClass[1], 
-                    forest.cm_train$byClass[2], 
-                    forest.cm_train$byClass[5], 
-                    forest.cm_train$byClass[6], 
-                    forest.cm_train$byClass[7])
-
-Gradient_Boosting <- c(boost.cm$overall[1],
-                       boost.cm$byClass[1],
-                       boost.cm$byClass[2],
-                       boost.cm$byClass[5],
-                       boost.cm$byClass[6],
-                       boost.cm$byClass[7])
-
-SVM <- c(svm.cm_train2$overall[1],
-         svm.cm_train2$byClass[1],
-         svm.cm_train2$byClass[2],
-         svm.cm_train2$byClass[5],
-         svm.cm_train2$byClass[6],
-         svm.cm_train2$byClass[7])
-
-result <- rbind(Random_Forests, Gradient_Boosting,SVM)
+result <- rbind(rf.perf, gbm.perf, svm.perf, nn.perf, mars.perf, esm.perf)
 
 kable(result)
 ```
 
 [TODO: Discuss summary]
-
-##  Unsupervised Machine Learning
-
-### Principle Component Analysis  
-
-Principal Component Analysis (PCA) is one of the most commonly used unsupervised machine learning algorithms across a variety of applications: exploratory data analysis, dimensionality reduction and information compression. It is a useful technique for exploratory data analysis, allowing us to better visualize the variation present in a dataset with many variables. For our particular use case here, it appears that many of the questionnaire variables fall on Likert scales, which when prepared for analysis are extended to dummy variables. This creates many additional features and can make analysis more difficult due to an increased number of dimensions. Therefore, utilizing PCA to reduce the number of dimensions on our entire dataset and measure the amount of variance explained is beneficial. In order to do this, we'll use the `prcomp()` function:
-
-```{r}
-df_dummy.pca <- prcomp(df_dummy, center = TRUE, scale. = TRUE)
-summary(df_dummy.pca)
-```
-
-```{r}
-fviz_eig(df_dummy.pca)
-```
-
-```{r}
-#compute standard deviation of each principal component
-std_dev <- df_dummy.pca$sdev
-#compute variance
-pr_var <- std_dev^2
-prop_varex <- pr_var/sum(pr_var)
-round(prop_varex[1:10], 2)
-```
-
-The first principal component in our example therefore explains 20% of the variability, and the second principal component explains 8%. Together, the first ten principal components explain 69% of the variability. And we proceed to plot the PVE and cumulative PVE to provide us our scree plots as we did earlier. 
-
-```{r}
-#scree plot
-plot(prop_varex, xlab = "Principal Component",
-             ylab = "Proportion of Variance Explained",
-             type = "b")
-#cumulative scree plot
-plot(cumsum(prop_varex), xlab = "Principal Component",
-              ylab = "Cumulative Proportion of Variance Explained",
-              type = "b")
-```
-
-```{r}
-library("FactoMineR")
-library("factoextra")
-
-eig.val <- get_eigenvalue(df_dummy.pca)
-eig.val
-```
-
-```{r}
-res.pca <- PCA(df_dummy, scale.unit = TRUE, ncp = 5, graph = FALSE)
-var <- get_pca_var(res.pca)
-```
-
-```{r}
-corrplot(var$cos2, is.corr=FALSE)
-```
-
-
-```{r}
-corrplot(var$contrib, is.corr=FALSE)
-```
-
-```{r}
-fviz_contrib(df_dummy.pca, choice = "var", axes = 1, top = 15)
-fviz_contrib(df_dummy.pca, choice = "var", axes = 2, top = 15)
-```
-
-```{r}
-fviz_pca_var(df_dummy.pca,
-             col.var = "contrib", # Color by contributions to the PC
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
-```
-
-[TODO: Need more explanation]
-
-### Kmeans Analysis  
-
-K-means clustering is one of the simplest and popular unsupervised machine learning algorithms that is part of a much deep pool of data techniques and operations in the realm of Data Science. It is the fastest and most efficient algorithm to categorize data points into groups even when very little information is available about data.
-
-```{r}
-fviz_nbclust(df_dummy, kmeans, method = "wss") +
-  geom_vline(xintercept = 5, linetype = 2) + # add line for better visualization
-  labs(subtitle = "Elbow method") # add subtitle
-```
-
-We can see above, that it is approximately 5. More clusters do not improve within segment variability.  Therefore, we'll perform our initial K-Means model with $k=5$.
-
-```{r}
-set.seed(42)
-km_res <- kmeans(df_dummy, centers = 3, nstart = 20)
-summary(km_res)
-
-sil <- silhouette(km_res$cluster, dist(df_dummy))
-fviz_silhouette(sil)
-```
-
-[TODO: Discuss]
-
-```{r}
-fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
-```
-
-To provide some context around the clusters that were generated by our algorithm, we decided to isolate the 5 clusters we created, and subjected them to our `df_dummy` dataset, grouping and computing the means for each one of our features, to see if any noticeable trends start to arise. 
-
-```{r}
-k_means_analysis_df <- df_dummy %>%
-  mutate(Cluster = km_res$cluster) %>%
-  group_by(Cluster) %>%
-  summarise_all("mean")
-```
-
-```{r}
-k_means_analysis_df <- k_means_analysis_df %>% 
-  select('Cluster', 'age', 'trestbps', 'chol', 'thalach', 'oldpeak')
-
-kable(k_means_analysis_df) %>% 
-  kable_styling(bootstrap_options = "responsive")
-```
-
-[Zach Note: just adding these in here since these were a few of the findings I discovered when running this data in python. We can take these out if they aren't helpful, but thought I'd leave them here in case others find similar trends or would like to expand on these.]
 
 ## Conclusions  
 
