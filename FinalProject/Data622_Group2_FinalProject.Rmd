@@ -82,14 +82,13 @@ library(factoextra)
 library(ClustOfVar)
 ```
 
-
 ***
 
 ## **Load Data & EDA**
 
 ***
 
-### Information about the dataset¶
+### Information about the dataset
 
 Before loading our dataset, and discussing our data exploration process, I'll quickly summarize the dataset that we'll be using for our machine learning analysis. The dataset is part of UCI's Cleveland Heart Disease data file, which consists of 303 individuals and various health-related metrics. The dataset we'll be using includes 14 attributes retrieved from patient tests and can be used for machine learning and classification analysis. Ultimately, these attributes will be examined to determine their effectiveness at predicting whether or not a particular patient has Heart Disease.  You can find more information about these 14 attributes below:
 
@@ -103,7 +102,7 @@ Before loading our dataset, and discussing our data exploration process, I'll qu
     + Value 3: non-anginal pain  
     + Value 4: asymptomatic  
 * `trestbps`: resting blood pressure (in mm Hg on admission to the hospital)  
-* `chol`: serum cholestoral in mg/dl  
+* `chol`: serum cholesterol in mg/dl  
 * `fbs`: (fasting blood sugar > 120 mg/dl) (1 = true; 0 = false)  
 * `restecg`: resting electrocardiographic results  
     + Value 0: normal  
@@ -116,8 +115,8 @@ Before loading our dataset, and discussing our data exploration process, I'll qu
     + Value 1: upsloping  
     + Value 2: flat  
     + Value 3: downsloping  
-* `ca`: number of major vessels (0-3) colored by flourosopy  
-* `thal`: 3 = normal; 6 = fixed defect; 7 = reversable defect  
+* `ca`: number of major vessels (0-3) colored by fluoroscopy  
+* `thal`: 3 = normal; 6 = fixed defect; 7 = reversible defect  
 * `target`: diagnosis of heart disease (angiographic disease status)  
     + Value 0: < 50% diameter narrowing  
     + Value 1: > 50% diameter narrowing  
@@ -125,8 +124,9 @@ Before loading our dataset, and discussing our data exploration process, I'll qu
 Given this context, we are now ready to load our data into R:  
 
 ```{r}
-df <- read.csv("https://raw.githubusercontent.com/djlofland/DATA622_S2021_Group2/main/FinalProject/data/heart.csv", header = TRUE)
-df <- df %>% rename(age = "ï..age")
+df <- read.csv("./data/heart.csv", header = TRUE)
+#df <- df %>% 
+#  rename(age = "age")
 ```
 
 ### Exploratory Data Analysis  
@@ -136,6 +136,7 @@ First, we can check the shape of the dataset. It looks like there are 303 rows a
 ```{r}
 dim(df)
 ```
+
 ### Missing values in the dataset
 
 We can also check to see if there is missing data.
@@ -150,8 +151,11 @@ As we can see above, there aren't any missing values across our dataset, which w
 skimr::skim(df)
 ```
 
+
+
 ```{r}
-df_viz <- df %>% mutate(sex = if_else(sex == 1, "Male", "Female"),
+df_viz <- df %>% 
+  mutate(sex = if_else(sex == 1, "Male", "Female"),
          fbs = if_else(fbs == 1, ">120", "<=120"),
          exang = if_else(exang == 1, "Yes" ,"No"),
          cp = if_else(cp == 1, "Atypical Angina",
@@ -161,12 +165,10 @@ df_viz <- df %>% mutate(sex = if_else(sex == 1, "Male", "Female"),
          slope = as.factor(slope),
          ca = as.factor(ca),
          thal = as.factor(thal),
-         target = if_else(target == 1, "Has heart disease", "Does not have heart disease")
-         ) %>% 
+         target = if_else(target == 1, "Has heart disease", "Does not have heart disease")) %>% 
   mutate_if(is.character, as.factor) %>% 
   dplyr::select(target, sex, fbs, exang, cp, restecg, slope, ca, thal, everything())
 ```
-
 
 Interestingly, we can also see that there's a pretty even split between those that have a presence and absence of heart disease:  
 
@@ -179,6 +181,8 @@ ggplot(df_viz, aes(x=target, fill=target)) +
   ggtitle("Analysis of Presence and Absence of Heart Disease") +
   scale_fill_discrete(name = "Heart Disease", labels = c("Absence", "Presence"))
 ```
+
+
 ```{r}
 prop.table(table(df_viz$target))
 ```
@@ -187,17 +191,19 @@ We can see that there is roughly a 50/50 split in this dataset of those that do 
 
 Additionally, when looking at the summary distributions, we can see that our patient population skews above 50 years, with an average age of individuals in this dataset at about 54 years old. The oldest individual is 77 years old, and the youngest is 29. We can take a look at the age frequency counts here:
 
-
 ```{r}
 # Counting the frequency of the values of the age
-hist(df_viz$age,labels=TRUE,main="Histogram of Age",xlab="Age Class",ylab="Frequency",col="steelblue")
+hist(df_viz$age, labels=TRUE, main="Histogram of Age", xlab="Age Class", 
+     ylab="Frequency", col="steelblue")
 ```
 
 ```{r}
 df_viz %>%
-  ggplot(aes(x=age,y=chol,size=chol, color=target))+
-  geom_point(alpha=0.7)+xlab("Age") +
-  ylab("Cholestoral")
+  ggplot(aes(x=age, y=chol, size=chol, color=target)) +
+  geom_density2d() + 
+  geom_point(alpha=0.4) + 
+  xlab("Age") +
+  ylab("Cholesterol")
 ```
 
 Interestingly from the plot above, when we take a look at the relationship between a patient's age, cholesterol and whether or not they have heart disease, we can see that those with positive diagnoses tend to be clustered between the ages of 40 and 70 years and relatively high cholesterol levels.  
@@ -209,7 +215,6 @@ df %>%
   group_by(target) %>% 
   summarise(mean=mean(trestbps))
 ```
-
 
 ### Feature Plots
 
@@ -228,7 +233,7 @@ ggcorr(cor_heart, label = T, label_round = 2)
 
 ### Dummy Columns
 
-We’ll need to dummy code our categorical variables.  This process will create new columns for each value and assign a 0 or 1.  Note that dummy encoding typically drops one value which becomes the baseline.  So if we have a categorical feature with five unique values, we will have four columns.  If all columns are 0, that represents the reference value.  This helps reduce the number of necessary columns.  With dummy columns in place, we need to remove our original variables from this dataset. 
+We'll need to dummy code our categorical variables.  This process will create new columns for each value and assign a 0 or 1.  Note that dummy encoding typically drops one value which becomes the baseline.  So if we have a categorical feature with five unique values, we will have four columns.  If all columns are 0, that represents the reference value.  This helps reduce the number of necessary columns.  With dummy columns in place, we need to remove our original variables from this dataset. 
 
 ```{r}
 # dummy encode our categorical features
@@ -239,6 +244,7 @@ df_dummy <- data.frame(predict(df_dummy, newdata = df_viz))
 
 ## Splitting the Dataset into Training and Testing  
 Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our original dataframe.
+
 ```{r}
 df$sex<-as.factor(df$sex)
 levels(df$sex)<-c("Female","Male")
@@ -280,7 +286,6 @@ df_train <- df2[index,]
 df_test  <- df2[-index,]
 ```
 
-
 ## Supervised Machine Learning
 
 ### Random Forest Analysis
@@ -307,14 +312,14 @@ varImpPlot(fit.forest,type=2)
 ```
 
 After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
+
 ```{r}
 forest.pred <- predict(fit.forest, newdata = df_test, type = "class")
 forest.cm_train <- confusionMatrix(forest.pred, df_test$target)
 forest.cm_train
-
 ```
 
-The accuracy is 0.85. The test result is not bad.
+The accuracy is 0.85. The test result is not bad. [TODO: Discuss sensitivity and specificity]
 
 [TODO: Need more explanation]
 
@@ -322,7 +327,6 @@ The accuracy is 0.85. The test result is not bad.
 ### Gradient Boosting
 
 ```{r}
-
 set.seed(123)
 
 # build gradient boosted model
@@ -333,9 +337,9 @@ fit.boost <- gbm(target~., df_train,
 
 # display model details
 fit.boost
-
-
 ```
+
+
 
 ```{r}
 sqrt(min(fit.boost$cv.error))
@@ -343,28 +347,32 @@ summary(fit.boost)
 ```
 
 
+
 ```{r}
 plot(fit.boost, i="chol")
 ```
+
+
 
 ```{r}
 
 plot(fit.boost, i="thalach")
 ```
+
 ```{r}
 # plot loss function as a result of n trees added to the ensemble
 gbm.perf(fit.boost, method = "cv")
 ```
+
 ```{r}
 
 gbm.perf(fit.boost, method = "OOB")
 
 ```
-The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (42 iterations for the cv method and 45 for the OOB method), the test data’s error appears to increase because of overfitting.
 
-According to the cv method, we choose 42 as the number of trees to predict the test set.
+The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (42 iterations for the cross-validation method and 45 for the OOB method), the test data error appears to increase because of overfitting.
 
-
+According to the cross-validation method, we choose 42 as the number of trees to predict the test set.
 
 ```{r}
 boostPre <- predict.gbm(fit.boost, 
@@ -377,6 +385,7 @@ boost.cm <- confusionMatrix(boostPre, df_test$target)
 boost.cm
 ```
 
+[TODO: Discussion ... accuracy, sensitvity, specificity]
 
 ### Support Vector Machine
 
@@ -384,69 +393,96 @@ In machine learning, Support vector machine (SVM) are supervised learning models
 
 In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces.
 
-
 ```{r}
 set.seed(123)
-fit.svm<-svm(target~.,data=df_train,kernel="radial", cost=10,scale = FALSE)
+fit.svm <- svm(target~., 
+               data=df_train, 
+               kernel="radial", 
+               cost=10, 
+               scale = FALSE)
 fit.svm
-
 ```
 
 ```{r}
-svm.pred <- predict(fit.svm, newdata = df_test)
+svm.pred <- predict(fit.svm, 
+                    newdata = df_test)
+
 svm.cm_train <- confusionMatrix(forest.pred, df_test$target)
 svm.cm_train
 ```
 
+[Discuss: ...]
 
 
 ```{r}
 
 svm.tune <- tune(e1071::svm, target~.,
                  data = df_train,
-                 ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),
+                 ranges=list(cost=c(0.001, 0.01, 0.1, 1, 5, 10, 100),
                  kernel=c("linear", "polynomial", "radial"),
-                 gamma=c(0.5,1,2,3,4)))
+                 gamma=c(0.5, 1, 2, 3, 4)))
 
 ```
+
+
 
 ```{r}
 summary(svm.tune)
 ```
 
+
+
 ```{r}
-bestmod<-svm.tune$best.model
+bestmod <- svm.tune$best.model
 bestmod
+
 svm.pred2 <- predict(bestmod, newdata = df_test, type = "class")
-svm.cm_train2 <- confusionMatrix(forest.pred, df_test$target)
-svm.cm_train2
+
+(svm.cm_train2 <- confusionMatrix(forest.pred, df_test$target))
 ```
 
-According to the Confusion matrix, Our model Accuracy is 0.8333.
+According to the Confusion matrix, Our model Accuracy is 0.8333. [TODO: Discuss]
 
 
 ###  Supervised Model Performance
 
 ```{r}
-Random_Forests<-c(forest.cm_train$overall[1],forest.cm_train$byClass[1],forest.cm_train$byClass[2],forest.cm_train$byClass[5],forest.cm_train$byClass[6],forest.cm_train$byClass[7])
+Random_Forests <- c(forest.cm_train$overall[1], 
+                    forest.cm_train$byClass[1], 
+                    forest.cm_train$byClass[2], 
+                    forest.cm_train$byClass[5], 
+                    forest.cm_train$byClass[6], 
+                    forest.cm_train$byClass[7])
 
-Gradient_Boosting<-c(boost.cm$overall[1],boost.cm$byClass[1],boost.cm$byClass[2],boost.cm$byClass[5],boost.cm$byClass[6],boost.cm$byClass[7])
+Gradient_Boosting <- c(boost.cm$overall[1],
+                       boost.cm$byClass[1],
+                       boost.cm$byClass[2],
+                       boost.cm$byClass[5],
+                       boost.cm$byClass[6],
+                       boost.cm$byClass[7])
 
-SVM<-c(svm.cm_train2$overall[1],svm.cm_train2$byClass[1],svm.cm_train2$byClass[2],svm.cm_train2$byClass[5],svm.cm_train2$byClass[6],svm.cm_train2$byClass[7])
+SVM <- c(svm.cm_train2$overall[1],
+         svm.cm_train2$byClass[1],
+         svm.cm_train2$byClass[2],
+         svm.cm_train2$byClass[5],
+         svm.cm_train2$byClass[6],
+         svm.cm_train2$byClass[7])
 
-result<-rbind(Random_Forests,Gradient_Boosting,SVM)
+result <- rbind(Random_Forests, Gradient_Boosting,SVM)
+
 kable(result)
 ```
 
+[TODO: Discuss summary]
 
 ##  Unsupervised Machine Learning
 
 ### Principle Component Analysis  
 
-Principal Component Analysis (PCA) is one of the most commonly used unsupervised machine learning algorithms across a variety of applications: exploratory data analysis, dimensionality reduction and information compression. It is a useful technique for exploratory data analysis, allowing us to better visualize the variation present in a dataset with many variables. For our particular use case here, it appears that many of the questionnaire variables fall on likert scales, which when prepared for analysis are extended to dummy variables. This creates many additional features and can make analysis more difficult due to an increased number of dimensions. Therefore, utilizing PCA to reduce the number of dimensions on our entired dataset and measure the amount of variance explained is beneficial. In order to do this, we’ll use the prcomp() function:
+Principal Component Analysis (PCA) is one of the most commonly used unsupervised machine learning algorithms across a variety of applications: exploratory data analysis, dimensionality reduction and information compression. It is a useful technique for exploratory data analysis, allowing us to better visualize the variation present in a dataset with many variables. For our particular use case here, it appears that many of the questionnaire variables fall on Likert scales, which when prepared for analysis are extended to dummy variables. This creates many additional features and can make analysis more difficult due to an increased number of dimensions. Therefore, utilizing PCA to reduce the number of dimensions on our entire dataset and measure the amount of variance explained is beneficial. In order to do this, we'll use the `prcomp()` function:
 
 ```{r}
-df_dummy.pca <- prcomp(df_dummy, center = TRUE,scale. = TRUE)
+df_dummy.pca <- prcomp(df_dummy, center = TRUE, scale. = TRUE)
 summary(df_dummy.pca)
 ```
 
@@ -511,30 +547,30 @@ fviz_pca_var(df_dummy.pca,
              )
 ```
 
-
 [TODO: Need more explanation]
-
-
-
 
 ### Kmeans Analysis  
 
 K-means clustering is one of the simplest and popular unsupervised machine learning algorithms that is part of a much deep pool of data techniques and operations in the realm of Data Science. It is the fastest and most efficient algorithm to categorize data points into groups even when very little information is available about data.
+
 ```{r}
 fviz_nbclust(df_dummy, kmeans, method = "wss") +
   geom_vline(xintercept = 5, linetype = 2) + # add line for better visualization
   labs(subtitle = "Elbow method") # add subtitle
 ```
 
-We can see above, that it is approximately 5. More clusters do not improve within segment variability.  Therefore, we’ll perform our initial K-Means model with $k=5$.
+We can see above, that it is approximately 5. More clusters do not improve within segment variability.  Therefore, we'll perform our initial K-Means model with $k=5$.
 
 ```{r}
 set.seed(42)
-km_res <- kmeans(df_dummy, centers = 5, nstart = 20)
+km_res <- kmeans(df_dummy, centers = 3, nstart = 20)
 summary(km_res)
+
 sil <- silhouette(km_res$cluster, dist(df_dummy))
 fviz_silhouette(sil)
 ```
+
+[TODO: Discuss]
 
 ```{r}
 fviz_cluster(km_res, df_dummy, ellipse.type = "norm")
@@ -550,18 +586,14 @@ k_means_analysis_df <- df_dummy %>%
 ```
 
 ```{r}
-k_means_analysis_df <- k_means_analysis_df %>% select('Cluster', 'age', 'trestbps', 'chol', 'thalach', 'oldpeak')
+k_means_analysis_df <- k_means_analysis_df %>% 
+  select('Cluster', 'age', 'trestbps', 'chol', 'thalach', 'oldpeak')
+
 kable(k_means_analysis_df) %>% 
   kable_styling(bootstrap_options = "responsive")
 ```
 
-
 [Zach Note: just adding these in here since these were a few of the findings I discovered when running this data in python. We can take these out if they aren't helpful, but thought I'd leave them here in case others find similar trends or would like to expand on these.]
-
-
-
-
-
 
 ## Conclusions  
 
