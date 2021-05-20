@@ -201,7 +201,7 @@ Additionally, when looking at the summary distributions, we can see that our pat
 
 ```{r}
 # Counting the frequency of the values of the age
-df_viz <- df_viz %>% rename("age" = "ï..age")
+#df_viz <- df_viz %>% rename("age" = "ï..age")
 
 hist(df_viz$age, labels=TRUE, main="Histogram of Age", xlab="Age Class", 
      ylab="Frequency", col="steelblue")
@@ -212,11 +212,12 @@ df_viz %>%
   ggplot(aes(x=age, y=chol, size=chol, color=target)) +
   geom_density2d() + 
   geom_point(alpha=0.4) + 
+  scale_color_manual(values = c("#2bbac0", "#f06e64")) + 
   xlab("Age") +
   ylab("Cholesterol")
 ```
 
-Interestingly from the plot above, when we take a look at the relationship between a patient's age, cholesterol and whether or not they have heart disease, we can see that those with positive diagnoses tend to be clustered between the ages of 40 and 70 years and relatively high cholesterol levels.  
+Interestingly from the plot above, when we take a look at the relationship between a patient's age, cholesterol and whether or not they have heart disease, we can see that those with positive diagnoses tend to be clustered between the ages of 40 and 60 years and relatively high cholesterol levels.  The patients without heart disease tended to be older 55-65 and had a wider range of cholesterol values.
 
 We can explore this further by taking a look at these averages split by our target:  
 
@@ -234,7 +235,8 @@ Next, we explore the relationships between each feature and the target.  For our
 ```{r fig.height=8, fig.width=8}
 featurePlot(x=df_viz[,c(10, 11, 12, 13, 14)], y=df_viz[, 1], 
             plot = "ellipse", 
-            auto.key = list(columns = 2))
+            auto.key = list(columns = 2)
+            )
 ```
 
 Here we see some patterns emerge, for example, `oldpeak` tends to cluster towards lower values across all other features in the heart disease group.  Also `thalach` tends towards higher values across each other features in the heart disease group. `chol` and `thalach` together have a tighter clustering and separation between our target classes.
@@ -296,6 +298,7 @@ long_df <- df_viz %>%
 ggplot(long_df, aes(x=value, fill=target)) + 
   geom_bar() + 
   facet_wrap(~kpi, scales="free_x") + 
+  scale_fill_manual(values = c("#2bbac0", "#f06e64")) + 
   ggtitle('Comparing Categorical Features and Target')
 ```
 
@@ -360,6 +363,7 @@ importance(fit.forest)
 
 varImpPlot(fit.forest,type=2)
 ```
+
 Next, we took a look at variable importance in our Random Forest model. Since Mean Decrease in Gini is the average of a variable's total decrease in node impurity, weighted by the proportion of samples reaching that node in each individual decision tree in the random forest, we can use this calculation to help us guage which features are more effective at estimating the value of our target variable across all of the trees that make up the forest. As we can see from our table and Mean Decrease Gini above, `thalach`, `thal.2` and `oldpeak` seem to be more effective features in our estimation of our target variable across our trees. We'll use this knowledge later on when running future models, and this helps provide perspective that certain factors of the heart when induced by exercise can help play a key role in our estimations.
 
 After fitting our Random Forest model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
@@ -378,10 +382,10 @@ rf.perf <- c(forest.cm_train$overall[1],
 ```
 
 From our ensuing confusion matrix and evaluation, we can see that our accuracy is about 0.78. This is a pretty good accuracy value. We can see that although this isn't too bad of an accuracy rate, there were 6 patients in our holdout test set that did not have heart disease that were misclassified by our model as having heart disease. Similarly, seven patients who had actually had heart disease were misclassified as not having heart disease by our model. Since sensitivity in this case is the percentage of patients that actually have heart disease and were correctly predicted to have heart disease, we can see that 78% of the time this outcome occurred from our model outcome. Conversely, our specificity value of 78%, which denotes the portion of our patient population in the test set that do not have heart disease that were correctly classified as not having heart disease is also not too bad. However, when thinking about the ramifications of utilizing this approach in the real-world, we'd have some unhappy people with our model misclassifying about 22% of our patients. This is why it's important to think critically about the evaluation of our machine learning models, and to determine whether or not an accuracy of 78% would be effective enough to implement in the real world.  
-In order to build on our initial Random Forest model, we'll take a gradient boosting approach. Different from Random Forest which is a bagging approach, this boosting method calculates large residuals from previous iterations, and given it's a boosting technique, these residuals will build on each other until reaching a certain threshold. We'll use the `gbm()` function, using our training dataset we'll generate 2000 trees with 5 folds. 
-
 
 ### Gradient Boosting
+
+In order to build on our initial Random Forest model, we'll take a gradient boosting approach. Different from Random Forest which is a bagging approach, this boosting method calculates large residuals from previous iterations, and given it's a boosting technique, these residuals will build on each other until reaching a certain threshold. We'll use the `gbm()` function, using our training dataset we'll generate 2000 trees with 5 folds.
 
 ```{r}
 set.seed(123)
@@ -443,7 +447,9 @@ gbm.perf <- c(boost.cm$overall[1],
               boost.cm$byClass[7])
 ```
 
-From our ensuing confusion matrix and evaluation of our gradient boosting method, we can see that our accuracy is about 0.85, which is an improvement from our Random Forest model above. This is also a pretty good accuracy value. We can see that although this isn't too bad of an accuracy rate, there were still 6 patients in our holdout test set that did not have heart disease that were misclassified by our model as having heart disease. However, this time, only three patients who had actually had heart disease were misclassified as not having heart disease by our model. As a reminder, the sensitivity in this case is the percentage of patients that actually have heart disease and were correctly predicted to have heart disease, we can see that 78% of the time this outcome occurred from our model outcome. This is similar to our Random Forest model evaluation. With gradient boosting, our specificity value of 91%, which denotes the portion of our patient population in the test set that do not have heart disease that were correctly classified as not having heart disease is much better than our Random Forest model. We can see that this gradient boosting technique was more effective at classifying individuals as having heart disease. When thinking about the ramifications of utilizing this approach in the real-world, we'd feel a bit more confident that this model could effectively determine patients with heart disease, but still given the lower sensitivity rate of 78% and misclassifying a fair amount of patients with having heart disease that actually didn't, we'd have to be careful that we weren't administering too many false positives.  
+From our ensuing confusion matrix and evaluation of our gradient boosting method, we can see that our accuracy is about 0.85, which is an improvement from our Random Forest model above. This is also a pretty good accuracy value. We can see that although this isn't too bad of an accuracy rate, there were still 6 patients in our holdout test set that did not have heart disease that were misclassified by our model as having heart disease. However, this time, only three patients who had actually had heart disease were misclassified as not having heart disease by our model. As a reminder, the sensitivity in this case is the percentage of patients that actually have heart disease and were correctly predicted to have heart disease, we can see that 78% of the time this outcome occurred from our model outcome. This is similar to our Random Forest model evaluation. With gradient boosting, our specificity value of 91%, which denotes the portion of our patient population in the test set that do not have heart disease that were correctly classified as not having heart disease is much better than our Random Forest model. Put another way, we are trying to maximize sensitivity which means were are minimizing False Negative errors.  A False Negative is when we predict a patient is healthy when in fact they are not.  For health related predictions, this error is far worse than telling a healthy patient they might have a disease.  
+
+We can see that this gradient boosting technique was more effective at classifying individuals as having heart disease. When thinking about the ramifications of utilizing this approach in the real-world, we'd feel a bit more confident that this model could effectively determine patients with heart disease, but still given the lower sensitivity rate of 78% and misclassifying a fair amount of patients with having heart disease that actually didn't, we'd have to be careful that we weren't administering too many false positives.  
 
 Given this context, we'll keep working through other machine learning approaches.  
 
@@ -552,10 +558,10 @@ nn.perf <- c(nn.cm_train$overall[1],
              nn.cm_train$byClass[6], 
              nn.cm_train$byClass[7])
 ```
+
 When evaluating the performance of our neural network, we can first take a look at the variable importance table, where we again see that `thalach`, `thal.2`, and `oldpeak` are at the top of our list. Interestingly, `ca.Q` is also identified as high importance.  
 
 The neural network accuracy was at 80%, which is slightly less than our SVM and GBM techniques. Additionally, the sensitivity is still right around 78%, similar to our other approaches, and our specificity is lower than GBM, at 82%. Therefore, this approach seems to be less effective than our GBM model.  
-
 
 ### Multivariate Adaptive Regressive Splines (MARS)
 
@@ -589,7 +595,8 @@ mars.cm_train <- confusionMatrix(mars.pred, df_test[, 22])
                 mars.cm_train$byClass[7]))
 
 ```
-From our model ouput above, we can see that the accuracy is lower than some of our other model approaches at 78%. Additionally, the sensitivity and specificity are also lower at 70% and 85% respectively. Because of this, we can determine that other techniques may be more effective classifiers.
+
+From our model output above, we can see that the accuracy is lower than some of our other model approaches at 78%. Additionally, the sensitivity and specificity are also lower at 70% and 85% respectively. Because of this, we can determine that other techniques may be more effective classifiers.
 
 ### Ensemble Classifier
 
@@ -622,19 +629,19 @@ esm.cm_train <- confusionMatrix(esm.df[['vote']], df_test[, 22])
                esm.cm_train$byClass[7]))
 ```
 
-See discussion of results in our conclusion.
+Our Ensemble model has the best overall performance.  We retained the $Accuracy = 0.85$ (i.e. correctly predicting True Positives and True Negative).  However, our $Sensitivity$ is now $0.8148$ which is an improvement over our best single model, GBM with $Sensitvity=0.7778$.  The Ensemble model made fewer False Negative predictions, which is a critical measure of performance for this use case.
 
 ###  Supervised Model Performance
 
-Here are the tablulated results from all our models, including the Ensemble Model that combines all 5.
+Here are the tabulated results from all our models, including the Ensemble Model that combines all 5.
 
 ```{r}
 result <- rbind(rf.perf, gbm.perf, svm.perf, nn.perf, mars.perf, esm.perf)
 
 kable(result)
 ```
-See discussion of performance in our conclusion below.
 
+See discussion of performance in our conclusion below.
 
 ## Conclusions  
 
@@ -648,10 +655,8 @@ Additionally, a large percentage of individuals that exhibited exercise-induced 
 
 Across many of our models, when we examined feature importance, we noticed that `thalach`, `thal.2` and `ca.Q` consistently were identified as having larger effects on the classification of whether or not patients in our dataset had heart disease or not. When thinking about this from a real-world perspective, physicians can really take these factors into consideration when evaluating their patients. For instance, we noticed that `thalach` (maximum heart rate achieved) can very much be used as a predictor for cardiovascular health. Additionally, `thal.2`, which was a characteristic of patients that had a fixed defect, also showed high variable importance. Again, physicians can use this information to be cautious of patients with underlying fixed heart defects and their associated risk of heart disease. Finally, `ca.Q`, which refers to the number of major vessels colored by fluoroscopy, also had high importance on our classifications. By utilizing this technology, physicians can weigh risk based on this factor as well.
 
-[TODO: Discuss feature importance across 5 models. Note from Zach: I added a bit above, but not sure if others have additional things to add.]
-
 ### Machine Learning Models in a Health-Related Context
 
-We ended up training 5 different models with the data set: Random Forest, Gradient Booste Machine, Support Vector Machine, Neural Network, and Multiple Adaptive Regressinve Splines.  The performance measures that are most important to us are Accuracy and Sensitvity (aka Recall).  Accuracy will tell us our True Positive ans True Negative rate which are important.  When working with health related prediction, errors leading to False Negative are far worse than errors leading to False Positive.  The logic is that if we incorrectly predict someone has having disease (and they get unnecessary followup), that is better than the alternative where we fail to predict and they don't get necessary care.  So, to minimize False Negative, we want to maximize Sensitvity (aka Recall).  We would like to have high Specifcity (or Precision), but that is a lower priority.
+We ended up training 5 different models with the data set: Random Forest, Gradient Boost Machine, Support Vector Machine, Neural Network, and Multiple Adaptive Regressive Splines.  The performance measures that are most important to us are Accuracy and Sensitivity (aka Recall).  Accuracy will tell us our True Positive ans True Negative rate which are important.  When working with health related prediction, errors leading to False Negative are far worse than errors leading to False Positive.  The logic is that if we incorrectly predict someone has having disease (and they get unnecessary followup), that is better than the alternative where we fail to predict and they don't get necessary care.  So, to minimize False Negative, we want to maximize Sensitvity (aka Recall).  We would like to have high Specifcity (or Precision), but that is a lower priority.
 
 Given this context, our GBM had $Accuracy=0.8500$ and $Sensitivity=0.7778$ and our Neural Network came in with $Accuracy=0.8167$ and $Sensitivity=0.8148148$.  However, the overall winner is out Ensemble Model that combines all the individual models.  The Ensemble had $Accuracy=0.8500$ and $Senitvity=0.8148148$ - giving us the best of both.  The reason Ensembles can outperform - and especially when facing unseen data - is that every individual model will have some blindspots and make errors.  When we combine a number of models, then we leverage the group to help catch errors by individual models.  With 5 different models, they vote, best 3 out of 5.  This helps compensate for one-off errors by models.  Note, we tried several combinations of Ensemble, dropping out the 2 lowest performing models (RF and MARS), but while they were individually the lowest performance individually, we we removed them from the emsemble, the ensemble performance decreased.  So apparantly, while RF and MARS didn't do as well overall, they did add value to the group.
