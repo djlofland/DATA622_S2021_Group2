@@ -201,6 +201,8 @@ Additionally, when looking at the summary distributions, we can see that our pat
 
 ```{r}
 # Counting the frequency of the values of the age
+df_viz <- df_viz %>% rename("age" = "ï..age")
+
 hist(df_viz$age, labels=TRUE, main="Histogram of Age", xlab="Age Class", 
      ylab="Frequency", col="steelblue")
 ```
@@ -216,19 +218,20 @@ df_viz %>%
 
 Interestingly from the plot above, when we take a look at the relationship between a patient's age, cholesterol and whether or not they have heart disease, we can see that those with positive diagnoses tend to be clustered between the ages of 40 and 70 years and relatively high cholesterol levels.  
 
-We can explore this further by taking a look at these in percentages:  
+We can explore this further by taking a look at these averages split by our target:  
 
-```{r}
+```{r, warning=FALSE}
 df %>% 
   group_by(target) %>% 
   summarise(mean=mean(trestbps))
 ```
 
+
 ### Feature Plots
 
 Next, we explore the relationships between each feature and the target.  For our continuous features, we do a simple `featurePlot` from the `caret` package which also lets us see how pairs of features relate with the target.
 
-```{r fig.height=5, fig.width=5}
+```{r fig.height=8, fig.width=8}
 featurePlot(x=df_viz[,c(10, 11, 12, 13, 14)], y=df_viz[, 1], 
             plot = "ellipse", 
             auto.key = list(columns = 2))
@@ -277,11 +280,11 @@ ggplot(delta_dfl, aes(X, Y, fill=value)) +
   ggtitle('Difference between Correlograms: With Disease - Without Disease')
 ```
 
-We separate out the correleograms based on `target` class.  The first chart show the pairwise correlations between continuous variable in our Healthy patients.  The second chart shows the pairwise correlations in patients with heart disease.  The third chart sows the difference to help draw attention to how heart disease patients differ from healthy patients.  For example, `age` vs. `thalach` correlation in healthy patients is `-0.55`.  In heart diseased patients, the correlation is `-0.94` ... there is a much stronger negative correlation between these features in our diseased patients.  The third chart show a bright red filled for `age` vs. `thalach` to draw attention that this correlation became more negative.  As a counter example, the `age` vs. `cholesterol` correlation is higher in diseased patients vs healthy (0.23 > -0.12).  This increase in correlation shows as a light green tile in the Difference plot (third).
+We separate out the correleograms based on `target` class.  The first chart shows the pairwise correlations between continuous variables in our Healthy patients.  The second chart shows the pairwise correlations in patients with heart disease.  The third chart shows the difference to help draw attention to how heart disease patients differ from healthy patients.  For example, `age` vs. `thalach` correlation in healthy patients is `-0.55`.  In heart diseased patients, the correlation is `-0.94` ... there is a much stronger negative correlation between these features in our diseased patients.  The third chart shows a bright red tile filled for `age` vs. `thalach` to draw attention that this correlation became more negative.  As a counter example, the `age` vs. `cholesterol` correlation is higher in diseased patients vs healthy (0.23 > -0.12).  This increase in correlation shows as a light green tile in the Difference plot (third).
 
-We can use bar charts to visualize how our categorical features are distribute across the two target classes.
+We can use bar charts to visualize how our categorical features are distributed across the two target classes.
 
-```{r fig.width=8}
+```{r fig.width=10, fig.height=8}
 long_df <- df_viz %>% 
   select(c(target:thal)) %>%
   mutate(fbs = factor(as.character(fbs)),
@@ -298,7 +301,7 @@ ggplot(long_df, aes(x=value, fill=target)) +
 
 A few notable points:
 
-* Looking as `sex`, we now see that of the patients in this study, a far higher portion of `female` presented with heat disease compared with the `males`.  
+* Looking as `sex`, we now see that of the patients in this study, a far higher portion of `female` presented with heart disease compared with the `males`.  
 * `exang` of `No` is more common with having heart disease. 
 * As we would expect, `cp` = `Asymptomatic` is far more correlated with being healthy.
 
@@ -316,28 +319,28 @@ df_dummy <- df_dummy %>%
   select(-target.Has.heart.disease)
 ```
 
-Note: the `dummyVars()` function from `caret` also automatically applies a scale and center transform on all our continuous features.  While we could probably choose custom transformations that improve performance (e.g. using `BoxCox.lambda` per feature), the distributions we saw above didn't look that skewed.  The default `caret` transform is probably sufficient.  
+Note: the `dummyVars()` function from `caret` also automatically applies a scale and center transform on all our continuous features.  While we could probably choose custom transformations that improve performance (e.g. using `BoxCox.lambda` per feature), the distributions we saw above didn't look that skewed. The default `caret` transform is probably sufficient.  
 
 ## Splitting the Dataset into Training and Testing
 
-Our first step will be to separate the data into training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on dummied dataset.
+Our first step will be to separate the data into a training and test dataset. This way, we can test the accuracy by using our holdout test set later on. We decided to perform a conventional 80/20 training to testing data split on our dummied dataset.
 
 ```{r}
 set.seed(123)
 
-index    <- createDataPartition(df_dummy$target, p=0.8, list = FALSE)
+index <- createDataPartition(df_dummy$target, p=0.8, list = FALSE)
 
 df_train <- df_dummy[index,]
 df_test  <- df_dummy[-index,]
 ```
 
-With our dataset prepared and training/test split in place, we re ready to proceed with trying different machine learning models to predict heart disease given our feature.
+With our dataset prepared and a training/test split in place, we are ready to proceed with trying different machine learning models to predict heart disease given our feature.
 
 ## Supervised Machine Learning
 
 ### Random Forest Analysis
 
-Random forest is a Supervised Learning algorithm which uses ensemble learning method for classification and regression. It is a bagging technique and not a boosting technique. The trees in random forests are run in parallel. There is no interaction between these trees while building the trees. It operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees.
+Random forest is a Supervised Learning algorithm which uses an ensemble learning method for classification and regression. It is a bagging technique and not a boosting technique. The trees in random forests are run in parallel. There is no interaction between these trees while building the trees. It operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees.
 
 ```{r}
 set.seed(123)
@@ -349,16 +352,17 @@ fit.forest
 plot(fit.forest)
 ```
 
-Red line represents MCR of class not having heart diseases, green line represents MCR of class having heart diseases and black line represents overall MCR or OOB error. Overall error rate is what we are interested in which seems considerably good.
+The plot above shows the Error and the Number of Trees as a result of our random forest analysis. We can very easily see that the Error drops dramatically as more trees are added and averaged. For reference, the red line represents the MCR of class designated as not having heart disease in our training set, whereas the green line represents the MCR of class designated as having heart disease in our training set. Additionally, the black line represents the overall MCR or OOB error. The overall error rate is what we are interested in which seems considerably good. Interestingly, we do see a pretty high Error for our class designated as not having heart disease over our first few trees, but this does drop quickly when more trees are added and averaged.  
 
-```{r}
+```{r, warning=FALSE}
 # show which feature were most important
 importance(fit.forest)
 
 varImpPlot(fit.forest,type=2)
 ```
+Next, we took a look at variable importance in our Random Forest model. Since Mean Decrease in Gini is the average of a variable's total decrease in node impurity, weighted by the proportion of samples reaching that node in each individual decision tree in the random forest, we can use this calculation to help us guage which features are more effective at estimating the value of our target variable across all of the trees that make up the forest. As we can see from our table and Mean Decrease Gini above, `thalach`, `thal.2` and `oldpeak` seem to be more effective features in our estimation of our target variable across our trees. We'll use this knowledge later on when running future models, and this helps provide perspective that certain factors of the heart when induced by exercise can help play a key role in our estimations.
 
-After fitting our model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
+After fitting our Random Forest model, we can now use it to create predictions on our holdout test set to evaluate its performance. 
 
 ```{r}
 rf.pred <- predict(fit.forest, newdata=df_test, type = "class")
@@ -373,9 +377,8 @@ rf.perf <- c(forest.cm_train$overall[1],
 
 ```
 
-The accuracy is 0.85. The test result is not bad. [TODO: Discuss sensitivity and specificity]
-
-[TODO: Need more explanation]
+From our ensuing confusion matrix and evaluation, we can see that our accuracy is about 0.78. This is a pretty good accuracy value. We can see that although this isn't too bad of an accuracy rate, there were 6 patients in our holdout test set that did not have heart disease that were misclassified by our model as having heart disease. Similarly, seven patients who had actually had heart disease were misclassified as not having heart disease by our model. Since sensitivity in this case is the percentage of patients that actually have heart disease and were correctly predicted to have heart disease, we can see that 78% of the time this outcome occurred from our model outcome. Conversely, our specificity value of 78%, which denotes the portion of our patient population in the test set that do not have heart disease that were correctly classified as not having heart disease is also not too bad. However, when thinking about the ramifications of utilizing this approach in the real-world, we'd have some unhappy people with our model misclassifying about 22% of our patients. This is why it's important to think critically about the evaluation of our machine learning models, and to determine whether or not an accuracy of 78% would be effective enough to implement in the real world.  
+In order to build on our initial Random Forest model, we'll take a gradient boosting approach. Different from Random Forest which is a bagging approach, this boosting method calculates large residuals from previous iterations, and given it's a boosting technique, these residuals will build on each other until reaching a certain threshold. We'll use the `gbm()` function, using our training dataset we'll generate 2000 trees with 5 folds. 
 
 
 ### Gradient Boosting
@@ -393,21 +396,17 @@ fit.boost <- gbm(target~., df_train,
 fit.boost
 ```
 
-
-
 ```{r}
 sqrt(min(fit.boost$cv.error))
 summary(fit.boost)
 ```
+As we can see above from the model summary and relative influence of our features, again `thalach` and `thal.2` are features that hold the highest importance in our classification of our training set along our target parameter.  
 
-
+Next, we'll take a look at the partial dependence plots of a few of our variables, including `chol` and `thalach`. These plots are a bit noisy, but we can see that both `thalach` and `chol` seem to be somewhat directly related to our response variable (a patient having heart disease).
 
 ```{r}
 plot(fit.boost, i="chol")
 ```
-
-
-
 ```{r}
 
 plot(fit.boost, i="thalach")
@@ -419,9 +418,7 @@ gbm.perf(fit.boost, method = "cv")
 ```
 
 ```{r}
-
 gbm.perf(fit.boost, method = "OOB")
-
 ```
 
 The plots indicating the optimum number of trees based on the technique we used. The green line indicates the error on the test data, and the blue dotted line points to the optimum number of iterations. We can observe that beyond a certain point (82 iterations for the cross-validation method and 43 for the OOB method), the test data error appears to increase because of overfitting.
@@ -446,13 +443,15 @@ gbm.perf <- c(boost.cm$overall[1],
               boost.cm$byClass[7])
 ```
 
-[TODO: Discussion ... accuracy, sensitvity, specificity]
+From our ensuing confusion matrix and evaluation of our gradient boosting method, we can see that our accuracy is about 0.85, which is an improvement from our Random Forest model above. This is also a pretty good accuracy value. We can see that although this isn't too bad of an accuracy rate, there were still 6 patients in our holdout test set that did not have heart disease that were misclassified by our model as having heart disease. However, this time, only three patients who had actually had heart disease were misclassified as not having heart disease by our model. As a reminder, the sensitivity in this case is the percentage of patients that actually have heart disease and were correctly predicted to have heart disease, we can see that 78% of the time this outcome occurred from our model outcome. This is similar to our Random Forest model evaluation. With gradient boosting, our specificity value of 91%, which denotes the portion of our patient population in the test set that do not have heart disease that were correctly classified as not having heart disease is much better than our Random Forest model. We can see that this gradient boosting technique was more effective at classifying individuals as having heart disease. When thinking about the ramifications of utilizing this approach in the real-world, we'd feel a bit more confident that this model could effectively determine patients with heart disease, but still given the lower sensitivity rate of 78% and misclassifying a fair amount of patients with having heart disease that actually didn't, we'd have to be careful that we weren't administering too many false positives.  
+
+Given this context, we'll keep working through other machine learning approaches.  
 
 ### Support Vector Machine
 
 In machine learning, Support vector machine (SVM) are supervised learning models with associated learning algorithms that analyze data used for classification and regression analysis. It is mostly used in classification problems. In this algorithm, each data item is plotted as a point in n-dimensional space (where n is number of features), with the value of each feature being the value of a particular coordinate. Then, classification is performed by finding the hyper-plane that best differentiates the two classes.
 
-In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces.
+In addition to performing linear classification, SVMs can efficiently perform a non-linear classification, implicitly mapping their inputs into high-dimensional feature spaces. Therefore, we'll also use this technique to classify patients based on our target variable.
 
 ```{r}
 set.seed(123)
@@ -464,6 +463,7 @@ fit.svm <- svm(target~.,
                scale = FALSE)
 fit.svm
 ```
+We'll initially start our svm model by fitting it to our training set. This is a baseline model, which we'll tune later.  
 
 ```{r}
 svm.pred <- predict(fit.svm, 
@@ -472,10 +472,8 @@ svm.pred <- predict(fit.svm,
 (svm.cm_train <- confusionMatrix(svm.pred, df_test$target))
 ```
 
-[Discuss: ...]
-
-
-```{r}
+When we subject this fitted model to our holdout test set, we can see that our model accuracy is quite low, around 57%. Additionally, our sensitivity value is *very* low, at about 7%, and our specificity value is quite high, at 97%. Given this, and our confusion matrix output, we can see that this first svm model was very keen to classify most patients as having heart disease. Only three patients in our holdout test set were classified as not having heart disease! Obviously, this first svm model would not be very effective in the real world. Therefore, we'll set some tuning parameters to find an optimal set for our next iteration of svm.  
+```{r, warning=FALSE}
 
 svm.tune <- tune(e1071::svm, target~.,
                  data = df_train,
@@ -485,13 +483,11 @@ svm.tune <- tune(e1071::svm, target~.,
 
 ```
 
-
-
-```{r}
+```{r, warning=FALSE}
 summary(svm.tune)
 ```
 
-
+From our tuning, we can see that the best parameters were an initial cost of 0.01, a linear kernel, and a gamma value of 0.5. We'll use these parameters in our next svm model iteration below:  
 
 ```{r}
 bestmod <- svm.tune$best.model
@@ -509,9 +505,12 @@ svm.perf <- c(svm.cm_train2$overall[1],
               svm.cm_train2$byClass[7])
 ```
 
-According to the Confusion matrix, Our model Accuracy is 0.8333. [TODO: Discuss]
+According to model output and confusion matrix, our tuned SVM model accuracy is slightly lower than our GBM method at 0.8333. Similar to our Random Forest and GBM models before, we are still seeing low sensitivity rates. For this model we are seeing it lower at 74%, and 7 patients from our holdout test set were misclassified as having heart disease when they actually did not. Our tuned SVM model is a lot more balanced than our initial SVM model, and is less keen to classify patients as having heart disease when they actually do not, but we are still going to explore other tactics to see if we can increase our sensitivity while keeping our specificity above 90% as well.  
 
 ### Neural Network
+
+We'll also take a neural network approach to our heart disease data. Since neural networks are adaptive in nature, where the first layer of a neural network receives a raw input, processes it and passes the processed information to hidden layers, where the hidden layers then pass the information to the last layer to produce an output, we can see that this technique learns from information provided in past iterations. It then optimizing its weights to better predict a final outcome. We will try to use this technique to see if we can continue to improve our model performance.  
+
 
 ```{r warning=FALSE}
 set.seed(123)
@@ -553,13 +552,16 @@ nn.perf <- c(nn.cm_train$overall[1],
              nn.cm_train$byClass[6], 
              nn.cm_train$byClass[7])
 ```
+When evaluating the performance of our neural network, we can first take a look at the variable importance table, where we again see that `thalach`, `thal.2`, and `oldpeak` are at the top of our list. Interestingly, `ca.Q` is also identified as high importance.  
+
+The neural network accuracy was at 80%, which is slightly less than our SVM and GBM techniques. Additionally, the sensitivity is still right around 78%, similar to our other approaches, and our specificity is lower than GBM, at 82%. Therefore, this approach seems to be less effective than our GBM model.  
 
 
 ### Multivariate Adaptive Regressive Splines (MARS)
 
-One final model we will try is MARS.  MARS has the advantage that it uses derived features so in effect has a built in dimensionality reduction steps.
+One final model we will try is MARS.  MARS has the advantage that it uses derived features so in effect has built in dimensionality reduction steps.
 
-```{r warning=FALSE}
+```{r, warning=FALSE, message=FALSE}
 set.seed(123)
 
 # Define the candidate models to test
@@ -587,7 +589,7 @@ mars.cm_train <- confusionMatrix(mars.pred, df_test[, 22])
                 mars.cm_train$byClass[7]))
 
 ```
-
+From our model ouput above, we can see that the accuracy is lower than some of our other model approaches at 78%. Additionally, the sensitivity and specificity are also lower at 70% and 85% respectively. Because of this, we can determine that other techniques may be more effective classifiers.
 
 ### Ensemble Classifier
 
@@ -633,6 +635,7 @@ kable(result)
 ```
 See discussion of performance in our conclusion below.
 
+
 ## Conclusions  
 
 In the end, we worked through a fair bit of analysis on this heart disease dataset. From this, we've come up with a few interesting conclusions:
@@ -641,9 +644,13 @@ Many of the attributes that were available in the Cleveland Heart Disease datase
 
 Additionally, a large percentage of individuals that exhibited exercise-induced angina (chest pain) had heart disease (roughly 75% of the individuals in the dataset). This is something worth noting, as it may help physicians with diagnoses and helping to identify factors that could lead to this type of disease.
 
-[TODO: Discuss feature importance across 5 models]
+### Feature Importance Across our Models
 
-It was also very interesting to run some machine learning algorithms on this dataset. Support Vector Machines (SVM) and Random Forest both provided pretty good classification outputs for predicting whether or not an individual has heart disease. Implementing more of these types of models in the future may be valuable to help physicians make proper decisions and can aid in diagnoses.
+Across many of our models, when we examined feature importance, we noticed that `thalach`, `thal.2` and `ca.Q` consistently were identified as having larger effects on the classification of whether or not patients in our dataset had heart disease or not. When thinking about this from a real-world perspective, physicians can really take these factors into consideration when evaluating their patients. For instance, we noticed that `thalach` (maximum heart rate achieved) can very much be used as a predictor for cardiovascular health. Additionally, `thal.2`, which was a characteristic of patients that had a fixed defect, also showed high variable importance. Again, physicians can use this information to be cautious of patients with underlying fixed heart defects and their associated risk of heart disease. Finally, `ca.Q`, which refers to the number of major vessels colored by fluoroscopy, also had high importance on our classifications. By utilizing this technology, physicians can weigh risk based on this factor as well.
+
+[TODO: Discuss feature importance across 5 models. Note from Zach: I added a bit above, but not sure if others have additional things to add.]
+
+### Machine Learning Models in a Health-Related Context
 
 We ended up training 5 different models with the data set: Random Forest, Gradient Booste Machine, Support Vector Machine, Neural Network, and Multiple Adaptive Regressinve Splines.  The performance measures that are most important to us are Accuracy and Sensitvity (aka Recall).  Accuracy will tell us our True Positive ans True Negative rate which are important.  When working with health related prediction, errors leading to False Negative are far worse than errors leading to False Positive.  The logic is that if we incorrectly predict someone has having disease (and they get unnecessary followup), that is better than the alternative where we fail to predict and they don't get necessary care.  So, to minimize False Negative, we want to maximize Sensitvity (aka Recall).  We would like to have high Specifcity (or Precision), but that is a lower priority.
 
